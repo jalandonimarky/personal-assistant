@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ingest — Technical Reference</title>
+<style>
+  @page { size: Letter; margin: 15mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 9.6pt; line-height: 1.55; color: #46413a;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  @media screen { body { max-width: 830px; margin: 34px auto; padding: 0 24px 60px; } }
+  html { overflow-x: hidden; }
+
+  .head { background:#efece2; border:1px solid #e3ddcd; border-radius:12px;
+          padding:24px 26px; margin-bottom:14px; }
+  .head .kicker { font-size:8pt; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:#7c7566; }
+  .head h1 { font-family:Georgia,serif; font-size:27pt; margin:9px 0 0; color:#1f1d19; letter-spacing:-.01em; }
+  .head .sub { margin-top:8px; font-size:11pt; color:#46413a; max-width:86%; }
+  .meta { margin-top:18px; padding-top:14px; border-top:1px solid #d5cdb9; display:flex; gap:34px; flex-wrap:wrap; }
+  .meta .l { font-size:7pt; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#9a9284; }
+  .meta .v { font-size:9.5pt; font-weight:650; color:#1f1d19; margin-top:2px; }
+
+  h2 { font-size:8.5pt; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+       color:#7c7566; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid #e3ddcd; }
+  h3 { font-family:Georgia,serif; font-size:13pt; color:#1f1d19; margin:17px 0 7px; }
+  p { margin:0 0 9px; }
+  section { break-inside: avoid; }
+  ul, ol { margin:0 0 9px; padding-left:18px; }
+  li { margin-bottom:4px; }
+  b, strong { color:#1f1d19; }
+
+  table { width:100%; max-width:100%; border-collapse:collapse; margin:6px 0 11px; }
+  th { font-size:7.3pt; font-weight:700; letter-spacing:1.1px; text-transform:uppercase;
+       color:#7c7566; text-align:left; padding:7px 9px; background:#f4f1e8; border-bottom:1.5px solid #d5cdb9; }
+  td { padding:7px 9px; border-bottom:1px solid #eee9dd; vertical-align:top; font-size:9.3pt; }
+  tbody tr:nth-child(even) td { background:#fbf9f4; }
+  td.k { font-weight:650; color:#1f1d19; width:24%; }
+  .yes { color:#3f5137; font-weight:700; }
+  .no  { color:#b0625a; font-weight:700; }
+
+  code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.5pt;
+         background:#f2efe6; padding:1px 5px; border-radius:4px; color:#3f5137;
+         /* Paths like meetings/YYYY-MM-DD-<slug>.md are one unbreakable token.
+            Without this the table exceeds its container, the page gains
+            horizontal overflow, and the layout stops lining up. */
+         overflow-wrap:anywhere; }
+  pre { background:#f7f5ee; border:1px solid #e3ddcd; border-radius:8px; padding:11px 13px;
+        margin:6px 0 11px; overflow-x:auto; }
+  pre code { background:none; padding:0; font-size:8.6pt; color:#46413a; }
+
+  .call { border-left:3px solid #6f8264; background:#eef2eb; padding:11px 14px;
+          border-radius:0 8px 8px 0; margin:11px 0; font-size:9.3pt; color:#3f5137; }
+  .call.warn { border-left-color:#b0625a; background:#f7ebe9; color:#7a3f39; }
+  .call b { color:inherit; }
+
+  .steps { counter-reset:s; list-style:none; padding:0; margin:8px 0 12px; }
+  .steps li { counter-increment:s; position:relative; padding-left:32px; margin-bottom:8px; }
+  .steps li::before {
+    content: counter(s); position:absolute; left:0; top:1px;
+    width:21px; height:21px; border-radius:50%; background:#6f8264; color:#fff;
+    font-size:8pt; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  footer { margin-top:26px; padding-top:11px; border-top:1px solid #e3ddcd;
+           font-size:7.8pt; color:#9a9284; line-height:1.6; }
+  .pb { break-before: page; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="kicker">Technical Reference</div>
+  <h1>Ingest</h1>
+  <div class="sub">How a pasted meeting, thread, deck, or decision becomes a structured file in an assistant&rsquo;s knowledge base — and why the file&rsquo;s <em>kind</em> decides whether it may create commitments.</div>
+  <div class="meta">
+    <div><div class="l">Component</div><div class="v">Personal Assistant</div></div>
+    <div><div class="l">Status</div><div class="v">Built</div></div>
+    <div><div class="l">Date</div><div class="v">25 Aug 2026</div></div>
+  </div>
+</div>
+
+<section>
+  <h2>1 · What it actually is</h2>
+  <p><b>Ingest is a template inserter.</b> Pressing the button writes a filing instruction into the message box. That is the entire mechanism — there is no hidden prompt, no background call, and nothing is sent until you press Send.</p>
+  <p>The instruction is visible and editable. You can rewrite it, or delete it and type your own; it carries no special status once it is in the box.</p>
+
+  <ol class="steps">
+    <li>Switch the mode selector to <b>Authoring</b>. It is the only mode whose <code>--allowedTools</code> includes <code>Write</code> and <code>Edit</code>, so it is the only mode that can produce a file at all.</li>
+    <li>Choose what you are pasting, or leave the selector on <b>Auto-detect</b>.</li>
+    <li>Press <b>Ingest →</b>. The instruction appears with the cursor parked at the end.</li>
+    <li>Paste your raw material underneath it, and Send.</li>
+  </ol>
+
+  <p>The assistant writes the file, then opens its reply by naming where it filed it and why, followed by what is new, what contradicts what it already knew, and what has gone stale.</p>
+</section>
+
+<section>
+  <h2>2 · The four types</h2>
+  <p>Each type answers three separable questions. The original single template answered all three at once, which is why it did not stretch beyond meetings.</p>
+  <table>
+    <thead><tr><th>Type</th><th>Routing</th><th>Shape</th><th>Task lines</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">Meeting</td>
+        <td><code>meetings/YYYY-MM-DD-&lt;slug&gt;.md</code></td>
+        <td>Decisions · Actions (with owner) · Open questions · Risks</td>
+        <td class="yes">yes</td>
+      </tr>
+      <tr>
+        <td class="k">Slack / email thread</td>
+        <td><code>threads/YYYY-MM-DD-&lt;slug&gt;.md</code></td>
+        <td>What was asked · What was agreed · Who owns what · Still open</td>
+        <td class="yes">yes</td>
+      </tr>
+      <tr>
+        <td class="k">Document or deck</td>
+        <td><code>references/&lt;slug&gt;.md</code></td>
+        <td>What it claims · Figures, each with its source locator · What could not be sourced</td>
+        <td class="no">no</td>
+      </tr>
+      <tr>
+        <td class="k">Decision</td>
+        <td><code>decisions/YYYY-MM-DD-&lt;slug&gt;.md</code></td>
+        <td>Context · Options considered · What was chosen · Why · What would change it</td>
+        <td class="no">no</td>
+      </tr>
+    </tbody>
+  </table>
+  <p><b>References are deliberately undated.</b> Re-ingesting the same document should update the existing file rather than fork a second copy of it. The other three are events, so they carry the date they happened.</p>
+  <p>Folders are created on first use. There is nothing to set up.</p>
+</section>
+
+<section>
+  <h2>3 · Why documents may not create task lines</h2>
+  <div class="call warn">
+    <b>This is the reason the feature has types at all.</b> Tell the model to &ldquo;turn every commitment into a task line&rdquo; and then hand it a QBR deck, and it will produce commitments nobody made. Pulse&rsquo;s scanner is deterministic, so those inventions arrive wearing an owner and a due date and look exactly as authoritative as the real ones.
+  </div>
+  <p>So the two non-event types are told <em>explicitly</em> not to emit them — not left silent on the question:</p>
+  <div class="call">&ldquo;Do NOT write task lines in this file. This kind of source records what is true, not what anyone committed to, and Pulse would treat invented items as real commitments.&rdquo;</div>
+  <p>A deck records claims. A decision record records a call already made. Neither is a promise, and neither should ever be nagging you three weeks later.</p>
+</section>
+
+<section>
+  <h2>4 · Auto-detect</h2>
+  <p>Auto-detect hands the assistant the whole routing table above and asks which row fits what you pasted.</p>
+  <div class="call">
+    <b>It picks the bucket. It never picks the format.</b> A classified paste comes out shaped identically to an explicitly-chosen one — same folder, same headings, same task-line syntax.
+  </div>
+  <p>That line has to hold for two reasons:</p>
+  <ul>
+    <li><b>Pulse matches literally.</b> The scanner looks for <code>moved:</code> and <code>due:</code> exactly. Let the model improvise and it will eventually write <code>moved on:</code> — which does not error, it just silently stops being a tracked commitment.</li>
+    <li><b>Retrieval depends on consistency.</b> &ldquo;What did we decide about the ops email&rdquo; only works when decisions always live in one place with one shape.</li>
+  </ul>
+  <p>Two behaviours fall out of it. The assistant <b>declares its classification</b> in the first line of its reply, so a misfile is visible immediately rather than three weeks later. And when a paste is genuinely a toss-up between two types, it files under its best reading and <b>parks the question</b> in the Questions tab rather than stopping — the app&rsquo;s existing pattern, reused rather than reinvented.</p>
+  <p>Pick an explicit type when you already know: a decision record that happens to read like meeting notes, for instance.</p>
+</section>
+
+<section class="pb">
+  <h2>5 · Task line syntax</h2>
+  <p>A commitment is a markdown task line. Pulse parses these off disk in TypeScript; the model never computes a date.</p>
+  <pre><code>- [ ] Send the vendor the field mapping @sam moved:2026-08-01 blocked:data export due:2026-08-20</code></pre>
+  <table>
+    <thead><tr><th>Token</th><th>Required</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="k">text</td><td>yes</td><td>What the commitment is</td></tr>
+      <tr><td class="k"><code>@owner</code></td><td>no</td><td>Who holds it</td></tr>
+      <tr><td class="k"><code>moved:</code></td><td>no, but</td><td>When the item last <em>moved</em>. Without it Pulse falls back to the file&rsquo;s mtime and marks the row <em>inferred</em> — which measures when you last touched the file, not when the work last progressed.</td></tr>
+      <tr><td class="k"><code>blocked:</code> / <code>needs:</code></td><td>no</td><td>What is holding it. Value runs to the next token, so it can contain spaces without quoting.</td></tr>
+      <tr><td class="k"><code>due:</code></td><td>no</td><td>Deadline. Overdue items sort above everything.</td></tr>
+    </tbody>
+  </table>
+  <p>Tick the box to close it. Fenced code blocks are skipped by the scanner, which is why documenting this convention inside a knowledge file does not create a phantom commitment.</p>
+</section>
+
+<section>
+  <h2>6 · Where the code lives</h2>
+  <table>
+    <thead><tr><th>File</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td class="k"><code>src/lib/ingest.ts</code></td><td>The types as data, and <code>ingestPrompt()</code> which renders the instruction. Same pattern as <code>src/lib/modes.ts</code>.</td></tr>
+      <tr><td class="k"><code>src/app/page.tsx</code></td><td>The Authoring write bar: selector, <b>Ingest →</b>, and the <b>?</b> help panel.</td></tr>
+      <tr><td class="k"><code>knowledge/&lt;assistant&gt;/README.md</code></td><td>The same conventions on the <em>read</em> side, so the assistant can find what it filed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Adding a type</h3>
+  <p>Append one entry to <code>INGEST_TYPES</code>. The selector, the prompt, and the in-app help table are all derived from that array, so nothing else needs editing.</p>
+  <pre><code>{
+  id: "spec",
+  label: "Spec or requirement",
+  what: "a spec — what someone asked to be built",
+  file: "specs/{date}-&lt;slug&gt;.md",
+  structure: "Requirement · Constraints · Out of scope · Acceptance",
+  commitments: true,
+}</code></pre>
+  <p>The <code>IngestId</code> union needs the new id added alongside it. Then add the row to each knowledge-root <code>README.md</code> — that half is not automatic, and it is what keeps filing and retrieval in agreement.</p>
+
+  <div class="call warn">
+    <b>Do not put these conventions in an assistant&rsquo;s system prompt.</b> <code>seedAssistants()</code> only runs when <code>data/store.json</code> is absent, so editing the seed changes nothing for assistants that already exist — you would be hand-editing the JSON. The knowledge-root <code>README.md</code> avoids this entirely, because the assistant reads its own root on every turn.
+  </div>
+</section>
+
+<section>
+  <h2>7 · Constraints</h2>
+  <ul>
+    <li><b>Writes are confined to the assistant&rsquo;s own knowledge root.</b> Every path is resolved and checked before any write. An assistant can be given a reference directory it may read but not write, and <code>../</code> escapes are refused. Logic in <code>src/lib/scope.ts</code>.</li>
+    <li><b>The date is computed per click</b>, not at module load — a tab left open overnight would otherwise stamp yesterday into the filing instruction.</li>
+    <li><b>Authoring is the only mode that can write.</b> Enforced through <code>--allowedTools</code> on the CLI call, not by instructing the model.</li>
+    <li><b>The instruction is text.</b> If the assistant ignores part of it, that is a prompt problem visible in the transcript, not hidden state.</li>
+  </ul>
+</section>
+
+<footer>
+  Personal Assistant · Ingest technical reference<br />
+  Source: <code>src/lib/ingest.ts</code> · In-app help: the <b>?</b> beside <b>Ingest →</b> in Authoring mode.
+</footer>
+
+</body>
+</html>

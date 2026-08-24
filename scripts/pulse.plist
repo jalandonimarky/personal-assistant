@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Daily staleness sweep at 08:00.
+
+  Install:
+    # Replace __REPO__ below with this repo's absolute path first:
+    sed "s|__REPO__|$PWD|g" scripts/pulse.plist > ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
+    launchctl load ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
+
+  Check / remove:
+    launchctl list | grep personal-assistant
+    launchctl unload ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
+
+  The sweep needs the app running (npm run dev). If it isn't, the script exits
+  cleanly and says so in pulse.err.log rather than failing silently.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>local.personal-assistant.pulse</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO__/scripts/pulse.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__REPO__/data/pulse.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO__/data/pulse.err.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

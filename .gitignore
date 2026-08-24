@@ -1,0 +1,14 @@
+node_modules
+.next
+next-env.d.ts
+tsconfig.tsbuildinfo
+*.tmp
+.DS_Store
+
+# Your conversations, questions, sweeps and settings. Never commit this.
+data
+
+# Each assistant's knowledge directory is yours, not the project's.
+# The template README stays tracked; everything an assistant writes does not.
+knowledge/*
+!knowledge/README.md

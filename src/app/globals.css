@@ -506,3 +506,178 @@ select.ingest-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px r
   border-bottom: 1px solid #b9c8ae; padding-bottom: 1px;
 }
 .ingest-help .doc-link:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* CLI preflight in Settings. Detection only — this app never handles the
+   credentials themselves, so there is nothing here to enter or store. */
+.cli-status {
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--card);
+  font-size: 12.5px; line-height: 1.55;
+}
+.cli-status.ok      { border-color: #cfdac7; background: var(--accent-soft); }
+.cli-status.warn    { border-color: #e6d3a8; background: #fbf5e6; }
+.cli-status.bad     { border-color: #e2bdb8; background: var(--danger-soft); }
+.cli-status.checking{ opacity: .75; }
+
+.cli-row { display: flex; align-items: center; gap: 9px; }
+.cli-row b { font-size: 13px; color: var(--ink); }
+.cli-row .btn { margin-left: auto; }
+.cli-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted-2); flex-shrink: 0; }
+.cli-status.ok   .cli-row .dot { background: var(--accent); }
+.cli-status.warn .cli-row .dot { background: #c99b2e; }
+.cli-status.bad  .cli-row .dot { background: var(--danger); }
+
+.cli-facts { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.cli-facts td { padding: 4px 0; vertical-align: top; }
+.cli-facts td:first-child {
+  width: 116px; color: var(--muted); font-size: 11px; letter-spacing: .4px;
+  text-transform: uppercase; padding-top: 6px;
+}
+.cli-facts td:last-child { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+.cli-remedy {
+  margin: 10px 0 0; padding: 10px 12px; white-space: pre-wrap;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-family: var(--mono); font-size: 12px;
+  color: var(--ink-soft);
+}
+.cli-note { margin: 9px 0 0; color: var(--muted); font-size: 12px; }
+
+/* Connections. A button beside Send opens a panel listing every app with its
+   real state — the old tick-box looked identical whether or not anything was
+   actually serving the tools behind it. */
+.connect-btn {
+  display: inline-flex; align-items: center; gap: 7px; margin-left: auto;
+  padding: 5px 13px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong); background: var(--card);
+  font-size: 12.5px; color: var(--ink-soft); white-space: nowrap;
+}
+.connect-btn:hover { background: var(--card-alt); }
+.connect-btn .plug { font-size: 13px; opacity: .7; }
+.connect-btn.on {
+  border-color: var(--accent); background: var(--accent-soft);
+  color: var(--accent-ink); font-weight: 650;
+}
+.connect-btn.on .plug { opacity: 1; }
+
+/* Fixed overlay — the panel must float above the page, not displace it. */
+.scrim {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(31, 29, 25, .34);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: scrim-in .12s ease-out;
+}
+@keyframes scrim-in { from { opacity: 0 } to { opacity: 1 } }
+
+.connectors {
+  width: min(560px, 100%); max-height: 86vh; display: flex; flex-direction: column;
+  animation: panel-in .14s ease-out;
+  background: var(--card); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: 0 18px 48px rgba(31,29,25,.22);
+}
+.connectors header {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 20px 22px 14px; border-bottom: 1px solid var(--border);
+}
+.connectors header h3 { font-family: var(--serif); font-size: 19px; margin: 0; color: var(--ink); }
+.connectors header p { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.connectors header .x {
+  margin-left: auto; font-size: 20px; line-height: 1; color: var(--muted);
+  background: none; border: 0; padding: 0 2px;
+}
+.connectors header .x:hover { color: var(--ink); }
+.connectors footer {
+  padding: 12px 22px 16px; border-top: 1px solid var(--border);
+  font-size: 11.5px; color: var(--muted); line-height: 1.5;
+}
+
+.svc-loading { padding: 28px 22px; font-size: 13px; color: var(--muted); }
+.svc-list { list-style: none; margin: 0; padding: 8px; overflow-y: auto; }
+
+.svc-card {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  gap: 10px 14px; padding: 13px 14px; border-radius: var(--radius-sm);
+}
+.svc-card:hover { background: var(--card-alt); }
+.svc-card + .svc-card { border-top: 1px solid var(--border); }
+.svc-id { display: flex; align-items: center; gap: 8px; }
+.svc-id b { font-size: 13.5px; color: var(--ink); font-weight: 650; }
+.svc-blurb { margin: 3px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+.svc-detail { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
+
+.pip {
+  font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+}
+.pip.ready { background: var(--accent-soft); color: var(--accent-ink); }
+.pip.needs-auth { background: #fbf0d8; color: #8a6a2f; }
+.pip.needs-setup { background: var(--card-alt); color: var(--muted); }
+.pip.unavailable { background: var(--danger-soft); color: var(--danger); }
+
+/* Switch — reads as on/off at a glance, unlike a tick-box that may do nothing. */
+.toggle {
+  width: 38px; height: 22px; border-radius: 20px; padding: 0; flex-shrink: 0;
+  border: 1px solid var(--border-strong); background: var(--card-alt);
+  position: relative; transition: background .14s, border-color .14s;
+}
+.toggle .knob {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(31,29,25,.28);
+  transition: transform .14s;
+}
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle.on .knob { transform: translateX(16px); }
+
+.svc-token { grid-column: 1 / -1; padding: 4px 0 2px; }
+.svc-token p { margin: 0 0 7px; font-size: 12px; color: var(--muted); }
+.svc-token-row { display: flex; gap: 7px; }
+.svc-token-row input {
+  flex: 1; padding: 6px 10px; font-size: 12.5px; font-family: var(--mono);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--card); outline: none;
+}
+.svc-token-row input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(91,127,181,.18); }
+.svc-token a { display: inline-block; margin-top: 7px; font-size: 11.5px; color: var(--accent-ink); }
+
+.svc-scope { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; }
+.svc-scope .can { color: var(--accent-ink); }
+.svc-scope .cannot { color: var(--danger); }
+
+.svc-msg { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--accent-ink); }
+.svc-msg.bad { color: var(--danger); }
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(6px) scale(.99) }
+  to   { opacity: 1; transform: none }
+}
+.connectors .hdr-act { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.connectors .re {
+  background: none; border: 0; padding: 0; font-size: 11.5px;
+  color: var(--muted); text-decoration: underline; text-underline-offset: 2px;
+}
+.connectors .re:hover:not(:disabled) { color: var(--accent-ink); }
+.connectors .re:disabled { opacity: .6; text-decoration: none; }
+
+/* Access level. Read is the default and always available; write appears only
+   where the service offers it and the mode can actually use it. */
+.svc-level { grid-column: 1 / -1; padding-top: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); overflow: hidden; }
+.seg button {
+  padding: 4px 13px; font-size: 12px; font-weight: 600;
+  background: var(--card); color: var(--muted); border: 0; border-radius: 0;
+}
+.seg button + button { border-left: 1px solid var(--border-strong); }
+.seg button:hover:not(:disabled):not(.sel) { background: var(--card-alt); color: var(--ink-soft); }
+.seg button.sel { background: var(--accent); color: #fff; }
+.seg button:disabled { opacity: .42; cursor: not-allowed; }
+
+.svc-level .scope { list-style: none; margin: 9px 0 0; padding: 0; }
+.svc-level .scope li { font-size: 11.5px; line-height: 1.5; padding-left: 15px; position: relative; }
+.svc-level .scope li::before { position: absolute; left: 0; }
+.svc-level .scope .can { color: var(--accent-ink); }
+.svc-level .scope .can::before { content: "✓"; }
+.svc-level .scope .can.w { font-weight: 650; }
+.svc-level .scope .cannot { color: var(--muted); }
+.svc-level .scope .cannot::before { content: "✕"; color: var(--danger); }
+.svc-hint { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }

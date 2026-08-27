@@ -7,6 +7,14 @@ export interface Assistant {
   description: string;
   systemPrompt: string;
   /**
+   * How this assistant should sound. Appended LAST, after the mode and
+   * formatting blocks, because whatever comes closest to generation carries the
+   * most weight — a voice placed first gets sanded off by the analytical blocks
+   * that follow it. Tone only: it can never change the model, the tools, or
+   * what the assistant is allowed to touch.
+   */
+  voice?: string;
+  /**
    * This assistant's own knowledge directory — browsed in the Knowledge tab and
    * the only place it may write. Falls back to settings.knowledgeRoot if unset.
    */

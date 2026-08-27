@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { read, mutate, uid } from "@/lib/store";
 import { getMode } from "@/lib/modes";
 import { runClaude } from "@/lib/claude";
-import { readableFor, rootFor } from "@/lib/scope";
+import { readableFor, neutralCwd } from "@/lib/scope";
 import type { Message, Question } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +83,9 @@ export async function POST(req: Request) {
       sessionId: thread.sessionId,
       newSessionId: uid(),
       addDirs: readableFor(assistant, state.settings),
-      cwd: rootFor(assistant, state.settings),
+      // Outside the user's workspace, so Claude Code does not pull their
+      // project memory into this assistant's context. See scope.ts.
+      cwd: neutralCwd(),
     });
 
     const reply: Message = {

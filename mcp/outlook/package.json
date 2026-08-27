@@ -1,0 +1,14 @@
+{
+  "name": "outlook-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only Microsoft Outlook MCP server. Per-user delegated auth, zero dependencies.",
+  "type": "module",
+  "bin": { "outlook-mcp": "src/index.mjs" },
+  "scripts": {
+    "login": "node src/index.mjs --login",
+    "logout": "node src/index.mjs --logout",
+    "status": "node src/index.mjs --status"
+  },
+  "engines": { "node": ">=18" }
+}

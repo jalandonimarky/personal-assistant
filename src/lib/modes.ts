@@ -13,7 +13,25 @@ export interface Mode {
 }
 
 const READ_ONLY = ["Read", "Glob", "Grep"];
-const READ_WRITE = ["Read", "Glob", "Grep", "Write", "Edit"];
+
+/**
+ * Producing a deliverable is part of what Authoring IS, not an integration with
+ * an outside service — so these are native to the mode rather than something to
+ * switch on. They are absent from every read-only mode, which is the same line
+ * Write and Edit sit on.
+ *
+ * Served by mcp/documents. If that server is not registered the names simply do
+ * not resolve and the model reports it, exactly like any other missing tool.
+ */
+const DOCUMENT_TOOLS = [
+  "mcp__documents__doc_read",
+  "mcp__documents__doc_list",
+  "mcp__documents__doc_create_spreadsheet",
+  "mcp__documents__doc_create_presentation",
+  "mcp__documents__doc_create_document",
+];
+
+const READ_WRITE = ["Read", "Glob", "Grep", "Write", "Edit", ...DOCUMENT_TOOLS];
 
 export const MODES: Mode[] = [
   {
@@ -37,6 +55,11 @@ export const MODES: Mode[] = [
     instruction: [
       "MODE: Authoring. Produce and persist the deliverable. You may write and edit",
       "files.",
+      "",
+      "You can also produce real documents — spreadsheets (.xlsx), presentations",
+      "(.pptx) and documents (.docx) — and read existing ones to work from. Use",
+      "them when the deliverable is genuinely a document; a table in markdown is",
+      "still the right answer for a table in a reply.",
       "",
       "When persisting knowledge, store durable structure and re-query volatile state.",
       "Record mappings, IDs, owners, and decisions. Never write down a value that goes",

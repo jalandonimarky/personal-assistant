@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Personal Assistant — Security &amp; Compliance Profile</title>
+<style>
+  @page { size: Letter; margin: 15mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+         font-size:9.6pt; line-height:1.55; color:#46413a;
+         -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  @media screen { body { max-width:830px; margin:34px auto; padding:0 24px 60px; } }
+  html { overflow-x:hidden; }
+
+  .head { background:#efece2; border:1px solid #e3ddcd; border-radius:12px;
+          padding:24px 26px; margin-bottom:14px; }
+  .head .kicker { font-size:8pt; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:#7c7566; }
+  .head h1 { font-family:Georgia,serif; font-size:26pt; margin:9px 0 0; color:#1f1d19; letter-spacing:-.01em; }
+  .head .sub { margin-top:8px; font-size:11pt; color:#46413a; }
+  .meta { margin-top:18px; padding-top:14px; border-top:1px solid #d5cdb9; display:flex; gap:34px; flex-wrap:wrap; }
+  .meta .l { font-size:7pt; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#9a9284; }
+  .meta .v { font-size:9.5pt; font-weight:650; color:#1f1d19; margin-top:2px; }
+
+  h2 { font-size:8.5pt; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+       color:#7c7566; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid #e3ddcd; }
+  h3 { font-family:Georgia,serif; font-size:12.5pt; color:#1f1d19; margin:16px 0 6px; }
+  p { margin:0 0 9px; }
+  section { break-inside:avoid; }
+  ul, ol { margin:0 0 9px; padding-left:18px; }
+  li { margin-bottom:4px; }
+  b, strong { color:#1f1d19; }
+
+  table { width:100%; max-width:100%; border-collapse:collapse; margin:6px 0 11px; }
+  th { font-size:7.3pt; font-weight:700; letter-spacing:1.1px; text-transform:uppercase;
+       color:#7c7566; text-align:left; padding:7px 9px; background:#f4f1e8; border-bottom:1.5px solid #d5cdb9; }
+  td { padding:7px 9px; border-bottom:1px solid #eee9dd; vertical-align:top; font-size:9.3pt; }
+  tbody tr:nth-child(even) td { background:#fbf9f4; }
+  td.k { font-weight:650; color:#1f1d19; width:27%; }
+
+  code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.5pt; background:#f2efe6;
+         padding:1px 5px; border-radius:4px; color:#3f5137; overflow-wrap:anywhere; }
+  pre { background:#f7f5ee; border:1px solid #e3ddcd; border-radius:8px; padding:11px 13px;
+        margin:6px 0 11px; overflow-x:auto; }
+  pre code { background:none; padding:0; font-size:8.6pt; color:#46413a; }
+
+  .call { border-left:3px solid #6f8264; background:#eef2eb; padding:11px 14px;
+          border-radius:0 8px 8px 0; margin:11px 0; font-size:9.3pt; color:#3f5137; }
+  .call.warn { border-left-color:#b0625a; background:#f7ebe9; color:#7a3f39; }
+  .call.note { border-left-color:#9a9284; background:#f4f1e8; color:#5c554a; }
+  .call b { color:inherit; }
+
+  .sev { display:inline-block; padding:2px 9px; border-radius:20px; font-size:7.5pt;
+         font-weight:700; letter-spacing:.7px; text-transform:uppercase; white-space:nowrap; }
+  .sev.hi { background:#f2dbd8; color:#8c463e; }
+  .sev.md { background:#f6ecd8; color:#8a6a2f; }
+  .sev.lo { background:#e6ece0; color:#3f5137; }
+
+  footer { margin-top:26px; padding-top:11px; border-top:1px solid #e3ddcd;
+           font-size:7.8pt; color:#9a9284; line-height:1.6; }
+  .pb { break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="kicker">Security &amp; Compliance Profile</div>
+  <h1>Personal Assistant</h1>
+  <div class="sub">A single-user, locally-hosted desktop tool that wraps the Claude Code CLI. Prepared for security review — written to disclose, not to persuade.</div>
+  <div class="meta">
+    <div><div class="l">Classification</div><div class="v">Local developer tool</div></div>
+    <div><div class="l">Users</div><div class="v">Single user</div></div>
+    <div><div class="l">Hosting</div><div class="v">Endpoint only</div></div>
+    <div><div class="l">Date</div><div class="v">25 Aug 2026</div></div>
+  </div>
+</div>
+
+<section>
+  <h2>1 · What this tool is</h2>
+  <p>A <b>local web interface for the Claude Code CLI</b>. It runs on one laptop, is reachable only on that machine&rsquo;s network, stores everything in plain files on that machine, and has no server, database, or cloud component of its own.</p>
+  <p>Functionally it does three things: keeps separate conversation threads per topic, stores notes as markdown files on disk, and scans those notes for commitments that have gone quiet.</p>
+
+  <div class="call">
+    <b>The framing that matters for review.</b> This tool introduces almost no new external attack surface — it is a user interface over a CLI that is already installed and already authenticated. The real compliance questions are <b>(a) is Claude Code itself approved for use here</b>, and <b>(b) what corporate data is placed within its file scope</b>. Both of those are true with or without this tool. What this tool changes is convenience — it makes it easier to put a lot of notes in one place and keep them there.
+  </div>
+
+  <h3>What it is not</h3>
+  <ul>
+    <li>Not a hosted service. Nothing is deployed; there is no server anyone else connects to.</li>
+    <li>Not multi-user. No accounts, no roles, no sharing features.</li>
+    <li>Not integrated with any corporate system — no Salesforce, no SSO, no directory, no email, no ticketing, no database connections.</li>
+    <li>Not a data pipeline. It does not extract, sync, or transmit records from any business system.</li>
+    <li>Not distributed to anyone. Source is in a <b>private</b> repository.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>2 · Architecture and data flow</h2>
+<pre><code>Browser (localhost:4317)
+   │  HTTP, same machine
+   ▼
+Next.js process  ── spawns subprocess ──▶  `claude` CLI  ──TLS──▶  Anthropic
+   │                                            │
+   ▼                                            ▼
+local files:                             ~/.claude/projects/
+  data/store.json                        (conversation transcripts,
+  knowledge/**/*.md                       written by Claude Code)</code></pre>
+
+  <table>
+    <thead><tr><th>Component</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Runtime</td><td>Node.js / Next.js 15, run locally via <code>npm run dev</code></td></tr>
+      <tr><td class="k">Persistence</td><td>Plain JSON and markdown files on local disk. No database.</td></tr>
+      <tr><td class="k">Third-party services</td><td><b>None called by the application.</b> Verified: every <code>fetch()</code> in the codebase is a same-origin relative path.</td></tr>
+      <tr><td class="k">Connected services (MCP)</td><td>Gmail, via a connector already authenticated to Claude Code at the account level. <b>Off by default and granted per turn</b> — see §4. No credentials are held by this application; access is granted by unlocking named tools, not by holding a token.</td></tr>
+      <tr><td class="k">Only external egress</td><td>Performed by the <code>claude</code> CLI subprocess, to Anthropic, over TLS</td></tr>
+      <tr><td class="k">Telemetry / analytics</td><td>None. The application emits no metrics, crash reports, or usage data.</td></tr>
+      <tr><td class="k">Inbound internet exposure</td><td>None. Not port-forwarded, not tunnelled, no public DNS.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>3 · Authentication</h2>
+  <table>
+    <thead><tr><th>Layer</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td class="k">The web app</td><td><b>None.</b> There is no login. Any request reaching the port is served.</td></tr>
+      <tr><td class="k">Anthropic</td><td>Inherited from Claude Code&rsquo;s existing authenticated session. <b>No API key is stored, entered, or held by this application.</b></td></tr>
+      <tr><td class="k">Credentials at rest</td><td>None belonging to this tool. It holds no secrets, tokens, or passwords.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="pb">
+  <h2>4 · Disclosed risks</h2>
+  <p>Stated plainly, worst first. None of these are theoretical — each was verified in the running application.</p>
+
+  <h3><span class="sev hi">High</span> &nbsp;Listens on all network interfaces with no authentication</h3>
+  <p>The development server binds to every interface rather than loopback:</p>
+  <pre><code>node  &lt;pid&gt;  TCP *:4317 (LISTEN)</code></pre>
+  <p>Combined with the absence of any login, <b>anyone able to reach port 4317 on the same network can read every stored conversation and write files into the knowledge directories.</b> On a coffee-shop or hotel network, that is any other guest.</p>
+  <p><b>Remediation:</b> bind to loopback only — <code>next dev -H 127.0.0.1</code> — so the socket is unreachable from off-machine. This is a one-line change and should be treated as mandatory before any further use.</p>
+
+  <h3><span class="sev hi">High</span> &nbsp;Corporate data may be transmitted to Anthropic</h3>
+  <p>Whatever notes are stored in, or readable from, an assistant&rsquo;s scope can be read by the model and therefore sent to Anthropic as prompt content. This is the intended function of the tool, not a defect — but it is the substance of the compliance decision.</p>
+  <p>Handling and retention of that content is governed by the terms of the Claude subscription in use, <b>not</b> by this application. If that subscription is a personal one rather than a corporate agreement, that distinction should be examined closely before any company data is placed in scope.</p>
+
+  <h3><span class="sev md">Medium</span> &nbsp;Untrusted content is processed by a model with write access</h3>
+  <p>The Ingest feature exists to paste external material — meeting notes, email threads, vendor decks — into a session whose tools include <code>Write</code> and <code>Edit</code>, with <code>--permission-mode acceptEdits</code>, meaning file writes are not individually confirmed. Pasted content is untrusted input and is a prompt-injection surface.</p>
+  <p><b>Existing mitigation:</b> writes are confined to the assistant&rsquo;s own directory; paths are resolved and rejected if they escape it. The blast radius of a successful injection is corruption of that assistant&rsquo;s own notes, not arbitrary filesystem access. No shell tool is granted in any mode.</p>
+
+  <h3><span class="sev md">Medium</span> &nbsp;Mailbox content can be placed in scope, deliberately</h3>
+  <p>The tool can be granted read access to Gmail for an individual turn. When granted, the model can search and read mail, and whatever it reads becomes conversation content — which means it is transmitted to Anthropic like any other prompt content.</p>
+  <p><b>Controls in place:</b></p>
+  <ul>
+    <li><b>Off by default.</b> The grant is ephemeral UI state, never persisted, and is revoked automatically on switching thread, assistant, or tab, and on reload.</li>
+    <li><b>Read-only by construction.</b> Only five retrieval tools are unlocked. Sending, replying, forwarding, drafting, trashing, labelling and spam-marking are excluded from the list and therefore uncallable — a model acting on a misread email cannot un-send it.</li>
+    <li><b>Enforced by the process, not by instruction.</b> Access is granted through <code>--allowedTools</code>. <b>Verified:</b> with the application&rsquo;s normal tool list, a direct instruction to read Gmail returns a refusal, despite the connector being authenticated at the account level.</li>
+    <li><b>Server-side validation.</b> Service identifiers arrive from the browser and are resolved against a fixed registry; nothing client-supplied reaches the tool whitelist verbatim.</li>
+    <li><b>Informed grant.</b> The first grant on a given browser requires confirming a dialog that states what is unlocked, what is withheld, and that content reaches Anthropic.</li>
+  </ul>
+  <div class="call warn">
+    <b>The residual risk is judgement, not mechanism.</b> Nothing prevents a user from granting access and then asking a question that pulls confidential mail into a prompt. This belongs in usage policy — the same boundary discussion as §4&rsquo;s second finding, now applying to a mailbox rather than a notes folder.
+  </div>
+
+  <h3><span class="sev md">Medium</span> &nbsp;Plaintext at rest, no application-level encryption</h3>
+  <p>Conversations and notes are readable files. Confidentiality depends entirely on OS disk encryption and account security — <b>FileVault should be confirmed enabled.</b> Claude Code separately retains conversation transcripts under <code>~/.claude/projects/</code>, which grows without bound.</p>
+
+  <h3><span class="sev lo">Low</span> &nbsp;No audit log, retention policy, or DLP</h3>
+  <p>There is no record of who accessed what, no automatic expiry, and no content inspection. For a single-user local tool this is proportionate, but it means the tool cannot evidence compliance with a retention or access-review requirement.</p>
+</section>
+
+<section>
+  <h2>5 · Controls that do exist</h2>
+  <table>
+    <thead><tr><th>Control</th><th>Implementation</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Tool whitelisting</td><td>Each mode passes an explicit <code>--allowedTools</code> list. Read-only modes receive <code>Read · Glob · Grep</code> only. <b>No mode grants shell or command execution.</b></td></tr>
+      <tr><td class="k">Directory scoping</td><td>The model sees only directories explicitly passed as <code>--add-dir</code>. It is not given the filesystem.</td></tr>
+      <tr><td class="k">Write confinement</td><td>Each assistant has exactly one writable directory. Reference directories are read-only by construction. Path traversal is resolved and refused.</td></tr>
+      <tr><td class="k">Per-turn service grants</td><td>External service access is off by default, granted explicitly, read-first, and revoked on navigation. Verified as enforced by the CLI rather than by prompt.</td></tr>
+      <tr><td class="k">No secret handling</td><td>The tool stores no credentials of any kind and never prompts for an API key.</td></tr>
+      <tr><td class="k">Inspectable state</td><td>All data is human-readable JSON and markdown, available for review or deletion at any time. Deleting <code>data/store.json</code> resets the tool.</td></tr>
+      <tr><td class="k">Source control</td><td>Private repository. Conversations, notes, and internal documents are excluded by <code>.gitignore</code> and verified absent from the published tree.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>6 · Questions review will likely ask</h2>
+  <table>
+    <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Where is data stored?</td><td>Local disk only. No cloud storage, no database, no backup service.</td></tr>
+      <tr><td class="k">What leaves the machine?</td><td>Prompt content and the contents of files the model reads within its scope — sent by the Claude Code CLI to Anthropic. The application itself makes no external calls.</td></tr>
+      <tr><td class="k">Who else can access it?</td><td>Nobody by design. See the High finding in §4 — the current network binding must be corrected for that answer to hold.</td></tr>
+      <tr><td class="k">Is customer or regulated data involved?</td><td>Not by design and not currently. The tool holds working notes. Whether it stays that way is a usage-policy decision, not a technical control.</td></tr>
+      <tr><td class="k">Is there a vendor to assess?</td><td>Only Anthropic, and only as the existing provider of Claude Code. This tool adds no new vendor, subprocessor, or data-sharing relationship.</td></tr>
+      <tr><td class="k">Can it be removed?</td><td>Entirely. Stop the process and delete the directory. Nothing is installed system-wide and nothing persists elsewhere except Claude Code&rsquo;s own session files.</td></tr>
+      <tr><td class="k">Who wrote it?</td><td>Internally, by the user, for personal use. No third-party code beyond standard open-source npm packages (Next.js, React, markdown rendering).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>7 · Recommended before continued use</h2>
+  <ol>
+    <li><b>Bind to loopback.</b> <code>next dev -H 127.0.0.1</code>. Closes the High network finding outright.</li>
+    <li><b>Confirm the Claude subscription&rsquo;s terms cover company data</b> — corporate agreement versus personal plan. This determines whether §4&rsquo;s second finding is acceptable or blocking.</li>
+    <li><b>Confirm FileVault is enabled</b> on the machine.</li>
+    <li><b>Agree an explicit data-class boundary</b> — what may and may not be placed in an assistant&rsquo;s scope. A written line is easier to hold to than judgement in the moment.</li>
+    <li><b>Include connected services in the data-class boundary</b> — Gmail read access is available per turn, so the policy should say plainly which mail may be brought into a prompt.</li>
+    <li><b>Decide a retention position</b> for <code>~/.claude/projects/</code>, which grows without limit and is outside this tool&rsquo;s control.</li>
+  </ol>
+  <div class="call note">
+    <b>Note on scope of this document.</b> It describes the application only. It does not assess Claude Code itself, the Anthropic service, or the terms of the subscription in use — those sit above this tool and should be reviewed on their own terms.
+  </div>
+</section>
+
+<footer>
+  Personal Assistant · Security &amp; compliance profile · 25 August 2026<br />
+  Findings verified against the running application. Written to disclose the tool's actual posture, not to reassure.
+</footer>
+
+</body>
+</html>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { read, mutate, uid } from "@/lib/store";
 import { getMode } from "@/lib/modes";
 import { runClaude } from "@/lib/claude";
-import { readableFor, rootFor } from "@/lib/scope";
+import { readableFor, neutralCwd } from "@/lib/scope";
+import { toolsFor } from "@/lib/services";
 import type { Message, Question } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -61,11 +62,21 @@ export async function POST(req: Request) {
     const result = await runClaude({
       prompt: content,
       systemPrompt: assistant.systemPrompt || assistant.description,
+      voice: assistant.voice,
       mode,
       sessionId: thread.sessionId,
       newSessionId,
       addDirs: readableFor(assistant, state.settings),
-      cwd: rootFor(assistant, state.settings),
+      // Outside the user's workspace, so Claude Code does not pull their
+      // project memory into this assistant's context. See scope.ts.
+      cwd: neutralCwd(),
+      // Granted for this turn only. toolsFor() drops anything not in the
+      // registry, so client-supplied ids never reach --allowedTools verbatim.
+      // The second argument is the mode gate: only a mode that already carries
+      // Write may unlock a service's write tools, so a write grant sent to
+      // Brainstorming degrades to read rather than elevating it.
+      serviceTools: toolsFor(body.services, mode.tools.includes("Write")),
+      channel: body.channel === "plain" ? "plain" : "web",
     });
 
     const reply: Message = {

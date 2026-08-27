@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { read } from "@/lib/store";
 import { MODES } from "@/lib/modes";
-import { rootFor } from "@/lib/scope";
+import { inboxDir, outboxDir, rootFor } from "@/lib/scope";
 import { scanRoot } from "@/lib/staleness";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,10 @@ export async function GET() {
     questions: s.questions,
     settings: s.settings,
     pulse,
+    // So a transport that receives attachments (the Telegram relay) can write
+    // them where assistants can read them, without duplicating the path rule.
+    inbox: inboxDir(),
+    outbox: outboxDir(),
     modes: MODES.map(({ id, label, blurb, model }) => ({
       id,
       label,

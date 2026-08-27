@@ -30,6 +30,8 @@ no API key, no native dependencies.
 | **Discussion** | A `claude` CLI session. First turn claims `--session-id`, every turn after uses `--resume`. |
 | **Mode** | Which model and which tools are allowed for that turn. |
 | **Ingest** | A filing instruction that turns a pasted meeting, thread, deck, or decision into a structured file. |
+| **Connections** | External services, off by default, granted per conversation at a chosen access level. |
+| **Documents** | Spreadsheets, decks and documents, produced natively in Authoring. |
 | **Questions** | Clarifying questions the assistant parked instead of blocking on. |
 | **Pulse** | Commitments that have gone quiet, detected off disk. |
 
@@ -87,6 +89,92 @@ not to emit them.
 Types live in `src/lib/ingest.ts`. Add one entry and the selector, the prompt,
 and the in-app help table all pick it up. Full write-up at `/docs/ingest` while
 the app is running, or `docs/ingest.html`.
+
+---
+
+## Connections
+
+External services are reachable per conversation, and only when you switch them
+on. The panel shows each one's real state — connected, sign-in required, set-up
+required — rather than a checkbox that looks identical whether or not anything
+is serving the tools behind it.
+
+| | Read | Write |
+|---|---|---|
+| **Gmail** | search and read mail | drafts and labels |
+| **Google Drive** | search and read files, including native Docs and Sheets | create, update, copy |
+| **GitHub** | repos, issues, PRs, commits, files, PR status | comment on an issue or PR |
+| **Vercel** | projects, deployments, build logs | — |
+| **Outlook** | search and read mail | — |
+
+**Two rules, both enforced in code rather than requested.**
+
+*Read is the default, and write needs Authoring.* Grants carry a level, and
+`toolsFor()` drops write-level tools unless the mode already holds `Write` — so
+a write grant sent to a read-only mode degrades to read instead of elevating it.
+
+*Irreversible and outward-facing actions are not offered at any level.* Sending
+mail, sharing a Drive file, merging, deploying, deleting — none of these have an
+entry. `claude -p` is non-interactive and Authoring runs `acceptEdits`, so an
+allowed tool fires with **no confirmation and no undo**. The grant is the
+confirmation. A draft you send yourself is a different risk from a send the
+model performs.
+
+Grants are never persisted and clear when you switch thread, assistant or tab.
+
+Gmail and Drive come from connectors already attached to your Claude account.
+GitHub and Vercel take a token you supply, stored in your OS keychain — the app
+never holds it. Outlook runs a local server against Microsoft Graph with
+per-user sign-in; see `mcp/outlook/README.md`.
+
+Services are defined in `src/lib/services.ts`.
+
+---
+
+## Documents
+
+In Authoring, the assistant can produce real deliverables:
+
+- **Spreadsheets** (`.xlsx`) from structured rows
+- **Presentations** (`.pptx`) from slides, bullets and speaker notes
+- **Documents** (`.docx`) from headings, text, lists and tables
+- and read existing `.xlsx`, `.pptx`, `.docx`, `.pdf` and text files to work from
+
+This is **not** a connection to switch on. Producing a deliverable is part of
+what Authoring is, so the tools live in the mode's tool list beside `Write` and
+`Edit` — and are absent from every read-only mode for the same reason those are.
+
+Every tool takes structured data, never a command: the model supplies rows and
+bullets, and the server decides what runs. Output is confined to an outbox
+outside your workspace. Requires `python3` with `openpyxl` and `python-pptx`,
+plus LibreOffice for `.docx`.
+
+Served by `mcp/documents/`.
+
+---
+
+## Telegram
+
+`bot/telegram.mjs` relays a Telegram chat to the app, so the assistant is usable
+from a phone.
+
+**Long polling, deliberately** — the relay calls out to Telegram and asks for
+messages. Nothing has to reach in: no open port, no tunnel, no public URL. It
+works on cellular and other people's networks for the same reason.
+
+```bash
+security add-generic-password -U -s telegram-bot-token -a default -w '<token>'
+security add-generic-password -U -s telegram-allowed-ids -a default -w '<your-id>'
+npm run bot
+```
+
+A bot token is effectively discoverable and anyone can message a bot, so the
+allowlist is not optional — without it a stranger reaches your assistant, your
+knowledge base and your connectors.
+
+Defaults to Brainstorming (read-only) and no connectors: you should not be able
+to authorise file writes by tapping a phone keyboard. `/mode authoring` is an
+explicit act. Commands: `/new`, `/who`, `/assistants`, `/use`, `/mode`, `/help`.
 
 ---
 
@@ -197,11 +285,19 @@ src/app/            Next.js routes — one API handler per resource
   docs/[slug]/      Serves docs/ so the UI can link to it
 src/lib/
   claude.ts         Builds the argv and parses the CLI's JSON output
+  services.ts       Connectors, their tools, and the read/write gate
   modes.ts          Model + allowed tools + instruction, per mode
   ingest.ts         Ingest types as data, and the prompt they render
   scope.ts          Path confinement — the security boundary
   staleness.ts      Deterministic commitment scanner (tested)
   store.ts          Read-modify-write JSON persistence
+mcp/                Zero-dependency MCP servers
+  lib/              Shared JSON-RPC transport and keychain access
+  documents/        Spreadsheets, decks, documents
+  github/           Repos, issues, PRs, commits, files
+  vercel/           Projects, deployments, build logs
+  outlook/          Microsoft Graph, per-user sign-in
+bot/telegram.mjs    Telegram relay
 scripts/            Pulse trigger, launchd agent, scanner tests
 docs/               Technical references, served at /docs/<slug>
 knowledge/          One directory per assistant. Gitignored.
@@ -214,6 +310,13 @@ knowledge/          One directory per assistant. Gitignored.
   clobbers another's write. Every read hits disk; every mutation is
   read-modify-write.
 - **`export const maxDuration` must be a literal.** `60 * 20` fails the build.
+- **The CLI's working directory leaks context.** Claude Code discovers CLAUDE.md
+  and project memory from its cwd and that directory's ancestors, so running with
+  cwd inside your workspace pulls your personal memory into every assistant —
+  quietly defeating the isolation. It runs from a neutral directory instead.
+- **Promisified `execFile` ignores `input`.** That option belongs to
+  `execFileSync`; passing it leaves the child waiting on a stdin that never
+  closes, so it hangs until the timeout rather than failing.
 - **The prompt goes over stdin**, not argv — avoids length limits and shell
   interpolation.
 - **Deleting an assistant keeps its knowledge folder** on disk, by design.
@@ -230,7 +333,10 @@ knowledge/          One directory per assistant. Gitignored.
 - Streaming replies — the reply lands when the CLI returns
 - Editing an assistant in-app (edit `data/store.json`)
 - Cross-assistant knowledge search
-- Per-message tool scoping in the UI (mode sets it today)
+- Authentication — the dev server binds to all interfaces with no login, so
+  anyone who can reach the port has full access. Bind to loopback
+  (`next dev -H 127.0.0.1`) unless you add a gate.
+- Windows support — token storage uses the macOS Keychain
 
 ---
 

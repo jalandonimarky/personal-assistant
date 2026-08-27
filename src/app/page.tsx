@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "@/components/Markdown";
+import type { Grant, Level } from "@/lib/services";
 import {
   INGEST_OPTIONS,
   INGEST_TYPES,
@@ -11,6 +12,24 @@ import {
 
 type ModeId = "brainstorming" | "authoring" | "critique" | "pulse";
 type Bucket = "fresh" | "aging" | "stale" | "cold";
+type SvcState = "ready" | "needs-auth" | "needs-setup" | "unavailable";
+interface ServiceStatus {
+  id: string;
+  label: string;
+  blurb: string;
+  state: SvcState;
+  detail: string;
+  canRegister?: boolean;
+  grants: string[];
+  withheld: string[];
+  writeGrants?: string[];
+  writeNote?: string;
+  hasWrite?: boolean;
+  auth:
+    | { kind: "account" }
+    | { kind: "oauth" }
+    | { kind: "token"; url: string; help: string };
+}
 
 interface Assistant {
   id: string;
@@ -122,7 +141,7 @@ const day = (ts: number) =>
 
 const MODE_TOOLS: Record<ModeId, string> = {
   brainstorming: "Read · Glob · Grep",
-  authoring: "Read · Glob · Grep · Write · Edit",
+  authoring: "Read · Glob · Grep · Write · Edit · Documents",
   critique: "Read · Glob · Grep",
   pulse: "Read · Glob · Grep",
 };
@@ -146,6 +165,82 @@ export default function Page() {
   const [mode, setMode] = useState<ModeId>("brainstorming");
   const [ingest, setIngest] = useState<IngestId>("auto");
   const [ingestHelp, setIngestHelp] = useState(false);
+
+  /**
+   * External services unlocked for the NEXT turn. Deliberately not persisted
+   * and not stored per-thread: access should be something you grant on purpose
+   * in the moment, never something left switched on and forgotten. The effect
+   * below clears it whenever you move.
+   */
+  const [services, setServices] = useState<Grant[]>([]);
+  const [svcOpen, setSvcOpen] = useState(false);
+  const [catalog, setCatalog] = useState<ServiceStatus[] | null>(null);
+  const [svcBusy, setSvcBusy] = useState<string | null>(null);
+  const [svcChecking, setSvcChecking] = useState(false);
+  const [svcMsg, setSvcMsg] = useState<{ id: string; text: string; bad?: boolean } | null>(null);
+  const [tokenFor, setTokenFor] = useState<string | null>(null);
+  const [tokenVal, setTokenVal] = useState("");
+
+  /**
+   * Probing costs ~6s (claude mcp list health-checks every server), so the
+   * panel shows what it last knew and refreshes behind it rather than blanking.
+   * `refresh` forces past the server's cache after an action changes something.
+   */
+  const loadCatalog = useCallback(async (refresh = false) => {
+    setSvcChecking(true);
+    try {
+      const r = await fetch(`/api/services${refresh ? "?refresh=1" : ""}`, {
+        cache: "no-store",
+      });
+      setCatalog((await r.json()).services ?? []);
+    } catch {
+      setCatalog((c) => c ?? []);
+    } finally {
+      setSvcChecking(false);
+    }
+  }, []);
+
+  // Warmed on mount so the panel is usually populated before it is opened.
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
+
+  useEffect(() => {
+    if (svcOpen) void loadCatalog();
+  }, [svcOpen, loadCatalog]);
+
+  useEffect(() => {
+    if (!svcOpen) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setSvcOpen(false);
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [svcOpen]);
+
+  const svcAction = useCallback(
+    async (id: string, action: string, token?: string) => {
+      setSvcBusy(id);
+      setSvcMsg(null);
+      try {
+        const r = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, action, token }),
+        });
+        const d = await r.json();
+        setSvcMsg({ id, text: d.error ?? d.message ?? "Done.", bad: !r.ok });
+        if (r.ok) {
+          setTokenFor(null);
+          setTokenVal("");
+          await loadCatalog(true);
+        }
+      } catch (e) {
+        setSvcMsg({ id, text: String(e), bad: true });
+      } finally {
+        setSvcBusy(null);
+      }
+    },
+    [loadCatalog],
+  );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -205,6 +300,16 @@ export default function Page() {
       setThreadId(threads[0]?.id ?? null);
     }
   }, [threads, threadId]);
+
+  /**
+   * Revoke on movement. Switching thread, assistant, or tab ends the context
+   * you granted access for, so the grant ends with it. A reload clears it too,
+   * since the state was never persisted in the first place.
+   */
+  useEffect(() => {
+    setServices([]);
+    setSvcOpen(false);
+  }, [threadId, assistantId, tab]);
 
   const composer = useRef<HTMLTextAreaElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -268,7 +373,7 @@ export default function Page() {
       await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ threadId: target, content, mode }),
+        body: JSON.stringify({ threadId: target, content, mode, services }),
       });
     } finally {
       await load();
@@ -683,6 +788,18 @@ export default function Page() {
                       <div className="tools">
                         TOOLS <b>{MODE_TOOLS[mode]}</b>
                       </div>
+
+                      <button
+                        className={`connect-btn${services.length ? " on" : ""}`}
+                        onClick={() => setSvcOpen(true)}
+                      >
+                        <span className="plug">⚯</span>
+                        {services.length === 0
+                          ? "Connect"
+                          : services.some((g) => g.level === "write")
+                            ? `${services.length} connected · write`
+                            : `${services.length} connected`}
+                      </button>
                     </div>
                   </div>
                 </section>
@@ -747,6 +864,233 @@ export default function Page() {
         )}
 
         {tab === "settings" && !creating && <Settings settings={state.settings} />}
+
+        {svcOpen && (
+          <div className="scrim" onClick={() => setSvcOpen(false)} role="presentation">
+            <div
+              className="connectors"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Connections"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header>
+                <div>
+                  <h3>Connections</h3>
+                  <p>
+                    Granted for this conversation only — switching thread, assistant
+                    or tab disconnects everything.
+                  </p>
+                </div>
+                <div className="hdr-act">
+                  <button
+                    className="re"
+                    onClick={() => void loadCatalog(true)}
+                    disabled={svcChecking}
+                    title="Re-check connections"
+                  >
+                    {svcChecking ? "Checking…" : "Re-check"}
+                  </button>
+                  <button className="x" onClick={() => setSvcOpen(false)} aria-label="Close">
+                    ×
+                  </button>
+                </div>
+              </header>
+
+              {catalog === null ? (
+                <div className="svc-loading">
+                  Checking connections… this takes a few seconds the first time.
+                </div>
+              ) : (
+                <ul className="svc-list">
+                  {catalog.map((c) => {
+                    const grant = services.find((g) => g.id === c.id);
+                    const on = Boolean(grant);
+                    // Write is offered only where the service has write tools
+                    // AND the mode can write. The server enforces this too — the
+                    // UI just avoids offering something that would be dropped.
+                    const canWrite = Boolean(c.hasWrite) && mode === "authoring";
+                    const ready = c.state === "ready";
+                    const busy = svcBusy === c.id;
+                    const msg = svcMsg?.id === c.id ? svcMsg : null;
+                    return (
+                      <li key={c.id} className={`svc-card ${c.state}`}>
+                        <div className="svc-main">
+                          <div className="svc-id">
+                            <b>{c.label}</b>
+                            <span className={`pip ${c.state}`}>
+                              {ready
+                                ? "Connected"
+                                : c.state === "needs-auth"
+                                  ? "Sign in required"
+                                  : c.state === "needs-setup"
+                                    ? "Set up required"
+                                    : "Unavailable"}
+                            </span>
+                          </div>
+                          <p className="svc-blurb">{c.blurb}</p>
+                          <p className="svc-detail">{c.detail}</p>
+                        </div>
+
+                        <div className="svc-act">
+                          {ready ? (
+                            <button
+                              className={`toggle${on ? " on" : ""}`}
+                              role="switch"
+                              aria-checked={on}
+                              aria-label={`Use ${c.label} in this conversation`}
+                              onClick={() =>
+                                setServices((v) =>
+                                  on
+                                    ? v.filter((x) => x.id !== c.id)
+                                    : [...v, { id: c.id, level: "read" as Level }],
+                                )
+                              }
+                            >
+                              <span className="knob" />
+                            </button>
+                          ) : c.state === "needs-setup" && c.canRegister ? (
+                            <button
+                              className="btn btn-sm"
+                              disabled={busy}
+                              onClick={() => void svcAction(c.id, "register")}
+                            >
+                              {busy ? "Setting up…" : "Set up"}
+                            </button>
+                          ) : c.state === "needs-auth" ? (
+                            c.auth.kind === "token" ? (
+                              <button
+                                className="btn btn-sm"
+                                onClick={() =>
+                                  setTokenFor(tokenFor === c.id ? null : c.id)
+                                }
+                              >
+                                Sign in
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm"
+                                disabled={busy}
+                                onClick={() => void svcAction(c.id, "login")}
+                              >
+                                {busy ? "Waiting for browser…" : "Sign in"}
+                              </button>
+                            )
+                          ) : null}
+                        </div>
+
+                        {tokenFor === c.id && c.auth.kind === "token" && (
+                          <div className="svc-token">
+                            <p>{c.auth.help}</p>
+                            <div className="svc-token-row">
+                              <input
+                                type="password"
+                                value={tokenVal}
+                                placeholder="Paste token"
+                                onChange={(e) => setTokenVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && tokenVal.trim())
+                                    void svcAction(c.id, "login", tokenVal.trim());
+                                }}
+                              />
+                              <button
+                                className="btn btn-sm btn-accent"
+                                disabled={busy || !tokenVal.trim()}
+                                onClick={() => void svcAction(c.id, "login", tokenVal.trim())}
+                              >
+                                {busy ? "Saving…" : "Save"}
+                              </button>
+                            </div>
+                            <a href={c.auth.url} target="_blank" rel="noreferrer">
+                              Create a token →
+                            </a>
+                          </div>
+                        )}
+
+                        {on && (
+                          <div className="svc-level">
+                            <div className="seg">
+                              <button
+                                className={grant?.level === "read" ? "sel" : ""}
+                                onClick={() =>
+                                  setServices((v) =>
+                                    v.map((x) =>
+                                      x.id === c.id ? { ...x, level: "read" as Level } : x,
+                                    ),
+                                  )
+                                }
+                              >
+                                Read
+                              </button>
+                              <button
+                                className={grant?.level === "write" ? "sel" : ""}
+                                disabled={!canWrite}
+                                title={
+                                  c.writeNote ??
+                                  (mode !== "authoring"
+                                    ? "Switch to Authoring — read-only modes cannot write."
+                                    : undefined)
+                                }
+                                onClick={() =>
+                                  setServices((v) =>
+                                    v.map((x) =>
+                                      x.id === c.id ? { ...x, level: "write" as Level } : x,
+                                    ),
+                                  )
+                                }
+                              >
+                                Read + write
+                              </button>
+                            </div>
+
+                            <ul className="scope">
+                              {c.grants.slice(0, 2).map((g) => (
+                                <li key={g} className="can">
+                                  {g}
+                                </li>
+                              ))}
+                              {grant?.level === "write" &&
+                                (c.writeGrants ?? []).map((g) => (
+                                  <li key={g} className="can w">
+                                    {g}
+                                  </li>
+                                ))}
+                              {c.withheld.slice(0, 2).map((w) => (
+                                <li key={w} className="cannot">
+                                  {w}
+                                </li>
+                              ))}
+                            </ul>
+
+                            {!canWrite && c.hasWrite && mode !== "authoring" && (
+                              <p className="svc-hint">
+                                Write is available in Authoring only. This mode is
+                                read-only and cannot change anything.
+                              </p>
+                            )}
+                            {c.writeNote && (
+                              <p className="svc-hint">{c.writeNote}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {msg && (
+                          <p className={`svc-msg${msg.bad ? " bad" : ""}`}>{msg.text}</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              <footer>
+                Read-only in every case. Anything read becomes part of the
+                conversation, and conversations go to Anthropic.
+              </footer>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
@@ -1347,6 +1691,120 @@ function Knowledge({ assistantId }: { assistantId: string }) {
 
 /* ------------------------------------------------------------------ */
 
+interface Health {
+  installed: boolean;
+  version?: string | null;
+  loggedIn: boolean;
+  authMethod?: string | null;
+  account?: string | null;
+  plan?: string | null;
+  billed?: boolean;
+  apiKeyPresent?: boolean;
+  remedy?: string | null;
+}
+
+/**
+ * Read-only preflight for the CLI. Detection, never authentication —
+ * credentials belong to Claude Code and this app must not learn them.
+ */
+function ClaudeStatus() {
+  const [h, setH] = useState<Health | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  const check = useCallback(async () => {
+    setChecking(true);
+    try {
+      const r = await fetch("/api/health", { cache: "no-store" });
+      setH(await r.json());
+    } catch {
+      setH(null);
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    check();
+  }, [check]);
+
+  const ok = h?.installed && h?.loggedIn;
+  const state = checking
+    ? { cls: "checking", label: "Checking…" }
+    : !h
+      ? { cls: "bad", label: "Check failed" }
+      : !h.installed
+        ? { cls: "bad", label: "Not installed" }
+        : !h.loggedIn
+          ? { cls: "bad", label: "Not signed in" }
+          : h.billed
+            ? { cls: "warn", label: "Signed in — API billing" }
+            : { cls: "ok", label: "Signed in" };
+
+  return (
+    <div className="field">
+      <label>Claude Code CLI</label>
+      <div className={`cli-status ${state.cls}`}>
+        <div className="cli-row">
+          <span className="dot" />
+          <b>{state.label}</b>
+          <button className="btn btn-sm" onClick={check} disabled={checking}>
+            Re-check
+          </button>
+        </div>
+
+        {ok && (
+          <table className="cli-facts">
+            <tbody>
+              <tr>
+                <td>Account</td>
+                <td>{h?.account ?? "—"}</td>
+              </tr>
+              <tr>
+                <td>Plan</td>
+                <td>{h?.plan ?? "—"}</td>
+              </tr>
+              <tr>
+                <td>Auth method</td>
+                <td>{h?.authMethod ?? "—"}</td>
+              </tr>
+              <tr>
+                <td>Version</td>
+                <td>{h?.version ?? "—"}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+
+        {h?.remedy && <pre className="cli-remedy">{h.remedy}</pre>}
+
+        {ok && h?.billed && (
+          <p className="cli-note">
+            {h.apiKeyPresent ? (
+              <>
+                <b>ANTHROPIC_API_KEY is set</b> in the shell running this server,
+                so turns are billed per token instead of counting against your
+                subscription. Unset it and restart to go back.
+              </>
+            ) : (
+              <>
+                This session is not on first-party subscription auth, so turns may
+                be billed per token.
+              </>
+            )}
+          </p>
+        )}
+
+        {ok && !h?.billed && (
+          <p className="cli-note">
+            Running on your subscription — nothing is billed per token.
+            Credentials stay in the macOS Keychain; this app never reads them.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Settings({
   settings,
 }: {
@@ -1358,6 +1816,7 @@ function Settings({
         <h3>Settings</h3>
       </div>
       <div className="form">
+        <ClaudeStatus />
         <div className="field">
           <label>Knowledge root (browsed in the Knowledge tab)</label>
           <input readOnly value={settings.knowledgeRoot} />

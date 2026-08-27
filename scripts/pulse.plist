@@ -3,8 +3,7 @@
   Daily staleness sweep at 08:00.
 
   Install:
-    # Replace __REPO__ below with this repo's absolute path first:
-    sed "s|__REPO__|$PWD|g" scripts/pulse.plist > ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
+    cp scripts/pulse.plist ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
     launchctl load ~/Library/LaunchAgents/local.personal-assistant.pulse.plist
 
   Check / remove:

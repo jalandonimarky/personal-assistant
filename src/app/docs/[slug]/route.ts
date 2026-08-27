@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
  */
 const DOCS: Record<string, string> = {
   ingest: "ingest.html",
+  prd: "prd.html",
 };
 
 export async function GET(

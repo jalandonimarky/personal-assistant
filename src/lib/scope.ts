@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { Assistant, Settings } from "./types";
 
@@ -31,13 +32,33 @@ export function rootFor(a: Assistant, settings: Settings): string {
 }
 
 /**
- * Directories passed to the CLI as --add-dir: the assistant's own root plus any
- * read-only references. Deduped, and the root always comes first.
+ * Where inbound attachments land.
+ *
+ * There is no image-block API on this path — runClaude spawns the CLI with a
+ * text prompt on stdin — but the CLI's Read tool opens images and PDFs from
+ * disk. So a photo becomes visible by writing it somewhere every assistant can
+ * reach and naming that path in the prompt.
+ *
+ * Deliberately outside the knowledge roots: an attachment is transient scratch,
+ * and one assistant's knowledge directory is not the place to drop another's.
+ */
+export function inboxDir(): string {
+  const dir =
+    process.env.PA_INBOX_DIR?.trim() ||
+    path.join(os.tmpdir(), "personal-assistant-inbox");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Directories passed to the CLI as --add-dir: the assistant's own root, any
+ * read-only references, and the shared attachment inbox. Deduped, and the root
+ * always comes first.
  */
 export function readableFor(a: Assistant, settings: Settings): string[] {
   const root = rootFor(a, settings);
   const extra = a.readableDirs ?? settings.knowledgeDirs;
-  return Array.from(new Set([root, ...extra]));
+  return Array.from(new Set([root, ...extra, inboxDir(), outboxDir()]));
 }
 
 /** Resolve a relative path inside a root, refusing anything that escapes it. */
@@ -70,4 +91,37 @@ export function seedRoot(root: string, assistantName: string): void {
     ].join("\n"),
     "utf8",
   );
+}
+
+/**
+ * Working directory for the CLI — deliberately OUTSIDE any of the user's
+ * projects.
+ *
+ * Claude Code discovers CLAUDE.md and project memory from its cwd and that
+ * directory's ancestors. Running with cwd inside the user's workspace pulled
+ * their entire personal memory into every assistant's context, which quietly
+ * broke the isolation this whole module exists to provide — one assistant was
+ * answering with facts about unrelated agents it had never been given.
+ *
+ * The assistant reaches its knowledge through --add-dir with absolute paths, so
+ * cwd carries no useful information anyway.
+ */
+export function neutralCwd(): string {
+  const dir = path.join(os.tmpdir(), "personal-assistant-cwd");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Where produced documents land — spreadsheets, decks, PDFs.
+ *
+ * Separate from the assistant's knowledge root on purpose: knowledge is prose
+ * the assistant reasons over, and a 2 MB .pptx sitting in it would be indexed,
+ * walked by the staleness scanner, and listed in the Knowledge tab for no
+ * benefit. Outside the workspace for the same reason as neutralCwd().
+ */
+export function outboxDir(): string {
+  const dir = path.join(os.tmpdir(), "personal-assistant-outbox");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
 }

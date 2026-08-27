@@ -4,6 +4,8 @@ import type { Mode } from "./modes";
 export interface RunArgs {
   prompt: string;
   systemPrompt: string;
+  /** Tone, appended last. See Assistant.voice. */
+  voice?: string;
   mode: Mode;
   /** Existing CLI session to continue, or null to start a new one. */
   sessionId: string | null;
@@ -11,6 +13,13 @@ export interface RunArgs {
   newSessionId: string;
   addDirs: string[];
   cwd: string;
+  /** Where the reply will be displayed. Decides which formatting block applies. */
+  channel?: "web" | "plain";
+  /**
+   * Extra MCP tool names unlocked for this turn only (see lib/services.ts).
+   * Absent from --allowedTools means unreachable, not merely discouraged.
+   */
+  serviceTools?: string[];
 }
 
 export interface RunResult {
@@ -41,6 +50,23 @@ const FORMATTING = [
   "Do not write a markup symbol you don't intend to be rendered. If you want a",
   "literal asterisk or underscore, escape it. Match the structure to the content:",
   "a one-line answer is a sentence, not a table with one row.",
+].join("\n");
+
+/**
+ * Telegram (and any other plain-text transport) renders nothing — `**bold**`
+ * arrives with its asterisks and a table arrives as raw pipes. The default
+ * block above would actively make replies worse there.
+ */
+const PLAIN = [
+  "",
+  "---",
+  "Your reply is delivered as plain text on a phone. It is NOT rendered, so any",
+  "markdown symbol you type will be visible as a symbol.",
+  "",
+  "- No tables, no headings, no bold, italic, backticks or fenced blocks.",
+  "- Short paragraphs. A blank line between them.",
+  "- A plain hyphen at the start of a line is fine for a short list.",
+  "- Lead with the answer. Keep it to what would read well on a phone screen.",
 ].join("\n");
 
 /**
@@ -75,8 +101,18 @@ function extractQuestions(raw: string): { text: string; questions: string[] } {
 }
 
 export function runClaude(args: RunArgs): Promise<RunResult> {
-  const { prompt, systemPrompt, mode, sessionId, newSessionId, addDirs, cwd } =
-    args;
+  const {
+    prompt,
+    systemPrompt,
+    voice,
+    mode,
+    sessionId,
+    newSessionId,
+    addDirs,
+    cwd,
+    channel = "web",
+    serviceTools = [],
+  } = args;
 
   const argv: string[] = [
     "-p",
@@ -85,9 +121,11 @@ export function runClaude(args: RunArgs): Promise<RunResult> {
     "--model",
     mode.model,
     "--append-system-prompt",
-    `${systemPrompt}\n\n${mode.instruction}${FORMATTING}${QUESTION_PROTOCOL}`,
+    `${systemPrompt}\n\n${mode.instruction}${channel === "plain" ? PLAIN : FORMATTING}${QUESTION_PROTOCOL}` +
+      (voice ? `\n\n---\nHOW YOU SOUND\n\n${voice}` : ""),
     "--allowedTools",
     ...mode.tools,
+    ...serviceTools,
     "--permission-mode",
     mode.tools.includes("Write") ? "acceptEdits" : "default",
   ];

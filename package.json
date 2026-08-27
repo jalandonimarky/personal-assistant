@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 4317",
     "pulse": "bash scripts/pulse.sh",
-    "test:pulse": "node scripts/staleness.test.mjs"
+    "test:pulse": "node scripts/staleness.test.mjs",
+    "bot": "node bot/telegram.mjs"
   },
   "dependencies": {
     "next": "15.1.6",

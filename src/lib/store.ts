@@ -11,9 +11,8 @@ const DATA_FILE = path.join(DATA_DIR, "store.json");
 const HOME = os.homedir();
 
 /**
- * Where the assistants may READ by default. Point this at wherever your notes
- * live — it is browsed in the Knowledge tab and passed to the CLI as --add-dir.
- * Change it here before first run, or in data/store.json afterwards.
+ * Where assistants may READ by default. Point this at wherever your notes live;
+ * change it here before first run, or in data/store.json afterwards.
  */
 const NOTES = path.join(HOME, "Notes");
 
@@ -23,7 +22,7 @@ function seedAssistants(): Assistant[] {
     {
       id: randomUUID(),
       // Owns its own directory, and additionally READS a reference directory it
-      // cannot write to. This is the pattern for "knows my existing notes".
+      // cannot write to. The pattern for "knows my existing notes".
       knowledgeRoot: path.join(KNOWLEDGE_HOME, "research-analyst"),
       readableDirs: [NOTES],
       name: "Research Analyst",

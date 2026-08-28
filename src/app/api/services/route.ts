@@ -207,7 +207,25 @@ export async function GET(req: Request) {
   }
 
   const reg = await registered();
-  const services = await Promise.all(SERVICES.map((s) => probe(s, reg)));
+  /**
+   * Advanced variants stay hidden until their client exists. Otherwise the
+   * panel shows two Gmails and two Drives to someone who only ever wanted the
+   * zero-setup one, and the easy path stops looking like the easy path.
+   */
+  const visible = [];
+  for (const svc of SERVICES) {
+    if (!svc.advanced) {
+      visible.push(svc);
+      continue;
+    }
+    const cc = svc.clientConfig;
+    const configured =
+      cc &&
+      (Boolean(process.env.GOOGLE_CLIENT_ID) || (await keychainHas(cc.idService)));
+    if (configured) visible.push(svc);
+  }
+
+  const services = await Promise.all(visible.map((s) => probe(s, reg)));
   const body = { services };
   cache = { at: Date.now(), body };
   return NextResponse.json({ ...body, cached: false, ageMs: 0 });

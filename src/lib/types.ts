@@ -51,6 +51,12 @@ export interface Message {
   mode: ModeId | null;
   costUsd: number | null;
   createdAt: number;
+  /**
+   * Files attached to this turn. Names only — the paths are inbox scratch and
+   * mean nothing once the file is gone, but the transcript should still show
+   * what was sent.
+   */
+  attachments?: string[];
 }
 
 /**

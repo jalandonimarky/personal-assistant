@@ -32,9 +32,11 @@ NPM_BIN="$(command -v npm || true)"
 [ -n "$NPM_BIN" ] || { echo "npm not found on PATH" >&2; exit 1; }
 
 # launchd hands a job a near-empty PATH — /usr/local/bin is not on it, so the
-# node that runs your shell is not the node launchd would find.
+# node that runs your shell is not the node launchd would find. Homebrew's
+# /opt/homebrew/bin matters too: document extraction shells out to LibreOffice,
+# and without it every .docx conversion fails with ENOENT.
 BIN_DIR="$(dirname "$NODE_BIN")"
-LAUNCH_PATH="$BIN_DIR:/usr/bin:/bin:/usr/sbin:/sbin"
+LAUNCH_PATH="$BIN_DIR:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
 
 LABELS=("$PREFIX.app" "$PREFIX.telegram" "$PREFIX.pulse")
 

@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown from "@/components/Markdown";
 import type { Grant, Level } from "@/lib/services";
+import type { StoredFile } from "@/lib/files";
+
+type Attachment = StoredFile;
 import {
   INGEST_OPTIONS,
   INGEST_TYPES,
@@ -56,6 +59,8 @@ interface Message {
   mode: ModeId | null;
   costUsd: number | null;
   createdAt: number;
+  /** Names of files sent with this turn. Kept in step with lib/types.ts. */
+  attachments?: string[];
 }
 interface Question {
   id: string;
@@ -309,10 +314,45 @@ export default function Page() {
   useEffect(() => {
     setServices([]);
     setSvcOpen(false);
+    setFiles([]);
+    setFileErr(null);
   }, [threadId, assistantId, tab]);
 
   const composer = useRef<HTMLTextAreaElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const filePicker = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [fileErr, setFileErr] = useState<string | null>(null);
+
+  /** Upload immediately: extraction is slow enough to want it off the send path. */
+  const addFiles = useCallback(async (picked: FileList | File[] | null) => {
+    const list = Array.from(picked ?? []);
+    if (!list.length) return;
+    setUploading(true);
+    setFileErr(null);
+    try {
+      const form = new FormData();
+      for (const f of list) form.append("files", f);
+      const r = await fetch("/api/upload", { method: "POST", body: form });
+      const d = await r.json();
+      if (Array.isArray(d.files) && d.files.length) {
+        setFiles((prev) => [...prev, ...d.files]);
+      }
+      const bad = [
+        ...(d.rejected ?? []).map((x: { name: string; error: string }) => `${x.name}: ${x.error}`),
+        ...(d.files ?? [])
+          .filter((f: Attachment) => f.note)
+          .map((f: Attachment) => `${f.name}: ${f.note}`),
+      ];
+      setFileErr(bad.length ? bad.join(" · ") : d.error ?? null);
+    } catch {
+      setFileErr("Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }, []);
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [messages.length, busy]);
@@ -332,7 +372,7 @@ export default function Page() {
 
   async function send() {
     const content = draft.trim();
-    if (!content || busy || !assistantId) return;
+    if ((!content && !files.length) || busy || uploading || !assistantId) return;
 
     let target = threadId;
     if (!target) {
@@ -346,7 +386,10 @@ export default function Page() {
       setThreadId(t.id);
     }
 
+    const sending = files;
     setDraft("");
+    setFiles([]);
+    setFileErr(null);
     setBusy(true);
     // Show the user's turn immediately; the reply lands after the CLI returns.
     setState((s) =>
@@ -363,6 +406,7 @@ export default function Page() {
                 mode,
                 costUsd: null,
                 createdAt: Date.now(),
+                ...(sending.length ? { attachments: sending.map((f) => f.name) } : {}),
               },
             ],
           }
@@ -373,7 +417,7 @@ export default function Page() {
       await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ threadId: target, content, mode, services }),
+        body: JSON.stringify({ threadId: target, content, mode, services, attachments: sending }),
       });
     } finally {
       await load();
@@ -594,9 +638,20 @@ export default function Page() {
                         {m.role === "user" ? (
                           <>
                             <div className="who">You</div>
-                            <div className="body">
-                              <Markdown>{m.content}</Markdown>
-                            </div>
+                            {m.attachments?.length ? (
+                              <div className="chips sent">
+                                {m.attachments.map((n, i) => (
+                                  <span key={`${m.id}-${i}`} className="chip">
+                                    {n}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                            {m.content && (
+                              <div className="body">
+                                <Markdown>{m.content}</Markdown>
+                              </div>
+                            )}
                           </>
                         ) : (
                           <>
@@ -765,25 +820,101 @@ export default function Page() {
                       </div>
                     )}
                     <label>Message</label>
-                    <textarea
-                      ref={composer}
-                      value={draft}
-                      placeholder="Share an idea or issue to explore…"
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                          e.preventDefault();
-                          void send();
-                        }
+                    <div
+                      className={`drop${dragging ? " over" : ""}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragging(true);
+                      }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragging(false);
+                        void addFiles(e.dataTransfer.files);
+                      }}
+                    >
+                      <textarea
+                        ref={composer}
+                        value={draft}
+                        placeholder="Share an idea or issue to explore… or drop a file in"
+                        onChange={(e) => setDraft(e.target.value)}
+                        onPaste={(e) => {
+                          // Screenshots arrive on the clipboard, not through a picker.
+                          const pasted = Array.from(e.clipboardData.files);
+                          if (pasted.length) {
+                            e.preventDefault();
+                            void addFiles(pasted);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            void send();
+                          }
+                        }}
+                      />
+                      {dragging && <div className="drop-hint">Drop to attach</div>}
+                    </div>
+
+                    <input
+                      ref={filePicker}
+                      type="file"
+                      multiple
+                      hidden
+                      onChange={(e) => {
+                        void addFiles(e.target.files);
+                        // Same file twice in a row fires no change event otherwise.
+                        e.target.value = "";
                       }}
                     />
+
+                    {(files.length > 0 || uploading) && (
+                      <div className="chips">
+                        {files.map((f, i) => (
+                          <span
+                            key={`${f.path}-${i}`}
+                            className={`chip${f.kind === "opaque" || f.note ? " weak" : ""}`}
+                            title={
+                              f.note
+                                ? `${f.name} — ${f.note}`
+                                : f.kind === "opaque"
+                                  ? `${f.name} — this format cannot be opened`
+                                  : f.extractedPath
+                                    ? `${f.name} — text extracted for reading`
+                                    : f.name
+                            }
+                          >
+                            {f.name}
+                            <button
+                              aria-label={`Remove ${f.name}`}
+                              onClick={() =>
+                                setFiles((prev) => prev.filter((_, j) => j !== i))
+                              }
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {uploading && <span className="chip pending">Reading…</span>}
+                      </div>
+                    )}
+
+                    {fileErr && <p className="file-err">{fileErr}</p>}
                     <div className="composer-row">
                       <button
                         className="btn btn-accent"
                         onClick={() => void send()}
-                        disabled={busy || !draft.trim()}
+                        disabled={busy || uploading || (!draft.trim() && !files.length)}
                       >
                         {busy ? "Working…" : "Send"}
+                      </button>
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => filePicker.current?.click()}
+                        disabled={busy || uploading}
+                        title="Attach files — text, images, PDFs, Word, Excel, PowerPoint"
+                      >
+                        {uploading ? "Reading…" : "Attach"}
                       </button>
                       <div className="tools">
                         TOOLS <b>{MODE_TOOLS[mode]}</b>

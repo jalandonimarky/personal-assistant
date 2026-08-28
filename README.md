@@ -295,6 +295,44 @@ Point the seeded assistants at your own notes by editing `NOTES` in
 
 ---
 
+## Attachments
+
+Attach files in the composer — the **Attach** button, drag-and-drop onto the
+message box, or paste a screenshot straight from the clipboard. Several at once
+is fine, and a file with no message is a complete turn.
+
+| Kind | How it's read |
+|---|---|
+| Text, Markdown, CSV, JSON, YAML, source code, logs | Opened directly |
+| PNG, JPG, GIF, WebP | Opened and looked at |
+| PDF | Opened directly, pages and all |
+| Word, Excel, PowerPoint, OpenDocument, RTF, EPUB | Text extracted on upload, then read |
+| Anything else | Stored, and the assistant is told plainly it cannot open it |
+
+**Office formats are extracted when you attach them, not when you ask.** They
+could have gone through the documents MCP server's `doc_read`, but that tool
+exists only in Authoring mode and only when the server is registered — so
+"summarise this deck" would have failed in Brainstorming, which is where people
+actually ask it. Extracting up front means a `.pptx` is readable in every mode,
+with no MCP server and no tool grant. The original file is kept next to the
+extracted text.
+
+Extraction uses `openpyxl` for `.xlsx` and `python-pptx` for `.pptx` — both
+pure Python. The rest (`.docx`, `.rtf`, `.odt`, `.epub`) go through LibreOffice,
+so those formats need `soffice` on the machine:
+
+```bash
+brew install --cask libreoffice
+```
+
+Without it, those files still upload — the assistant is just told it could not
+read them, rather than being left to guess.
+
+Files land in a shared inbox (`PA_INBOX_DIR`, or a temp directory), which is
+already passed to every turn as `--add-dir`. They're scratch, not knowledge:
+nothing is filed into an assistant's knowledge directory unless the assistant
+writes it there itself. Uploads are capped at 25 MB each.
+
 ## Data
 
 `data/store.json` — assistants, threads, messages, questions, sweeps, settings.

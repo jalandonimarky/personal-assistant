@@ -4,6 +4,7 @@ import { getMode } from "@/lib/modes";
 import { runClaude } from "@/lib/claude";
 import { readableFor, neutralCwd } from "@/lib/scope";
 import { toolsFor } from "@/lib/services";
+import { describeAttachments, type StoredFile } from "@/lib/files";
 import type { Message, Question } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +21,19 @@ export async function POST(req: Request) {
   const content = String(body.content ?? "").trim();
   const mode = getMode(String(body.mode ?? "brainstorming"));
 
-  if (!threadId || !content) {
+  // Written by /api/upload, which is what decided these paths are readable.
+  // Nothing here trusts a client-supplied path for anything but text it hands
+  // to the model: the CLI can only open what --add-dir already allows.
+  const attachments: StoredFile[] = Array.isArray(body.attachments)
+    ? (body.attachments as StoredFile[]).filter(
+        (f) => f && typeof f.path === "string" && typeof f.name === "string",
+      )
+    : [];
+
+  // A file on its own is a complete message — "here, look at this".
+  if (!threadId || (!content && !attachments.length)) {
     return NextResponse.json(
-      { error: "threadId and content are required." },
+      { error: "threadId, and either content or an attachment, are required." },
       { status: 400 },
     );
   }
@@ -46,13 +57,20 @@ export async function POST(req: Request) {
     mode: mode.id,
     costUsd: null,
     createdAt: now,
+    ...(attachments.length ? { attachments: attachments.map((f) => f.name) } : {}),
   };
+
+  // The model gets the paths; the stored message does not. Appended rather than
+  // prepended so the user's own words still lead the turn.
+  const promptText = [content, describeAttachments(attachments)]
+    .filter(Boolean)
+    .join("\n\n");
 
   const isFirstTurn = !thread.sessionId;
   mutate((s) => {
     s.messages.push(userMessage);
     const t = s.threads.find((x) => x.id === threadId)!;
-    if (isFirstTurn) t.title = titleFrom(content);
+    if (isFirstTurn) t.title = titleFrom(content || attachments[0]?.name || "");
     t.updatedAt = now;
   });
 
@@ -60,7 +78,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await runClaude({
-      prompt: content,
+      prompt: promptText,
       systemPrompt: assistant.systemPrompt || assistant.description,
       // Register is channel-specific, so the plain-text voice wins on Telegram
       // when one is set. The persona in systemPrompt is unchanged either way.

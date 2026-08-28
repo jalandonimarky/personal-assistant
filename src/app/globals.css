@@ -549,6 +549,13 @@ select.ingest-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px r
 }
 .cli-note { margin: 9px 0 0; color: var(--muted); font-size: 12px; }
 
+/* Sign-in flow, shown only while the CLI is installed but not authenticated. */
+.cli-auth { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.cli-auth .cli-note { margin: 0; }
+.cli-auth .tg-input { width: 100%; }
+.cli-auth a { color: var(--link, #0077b0); text-decoration: underline; text-underline-offset: 2px; }
+.cli-err { margin: 9px 0 0; color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+
 /* Connections. A button beside Send opens a panel listing every app with its
    real state — the old tick-box looked identical whether or not anything was
    actually serving the tools behind it. */

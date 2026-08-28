@@ -27,6 +27,22 @@ no API key, no native dependencies.
 
 ---
 
+## First run
+
+You need [Claude Code](https://claude.com/claude-code) installed and on your
+`PATH` (`npm install -g @anthropic-ai/claude-code`). You do **not** need to sign
+it in first — open **Settings** and the Claude Code CLI panel will offer
+**Sign in to Claude** whenever it finds the CLI installed but unauthenticated.
+
+That button runs the CLI's own `claude auth login`: a browser tab opens, you
+approve, and you paste the code Anthropic gives you back into the panel. From
+then on every turn runs on **your** account and your subscription.
+
+This app never sees your password or your tokens. `claude auth login` performs
+the exchange itself and writes the result to your Keychain — all this app ever
+handles is the single-use authorization code, which is spent the moment the CLI
+redeems it. Signing out again is in the same panel.
+
 ## How it works
 
 | Concept | What it actually is |

@@ -1704,12 +1704,21 @@ interface Health {
 }
 
 /**
- * Read-only preflight for the CLI. Detection, never authentication —
- * credentials belong to Claude Code and this app must not learn them.
+ * Preflight for the CLI, and sign-in when it isn't authenticated yet.
+ *
+ * Signing in here does NOT make this app hold credentials. `claude auth login`
+ * does the OAuth exchange itself and writes the result to the Keychain; we
+ * start it, show the link it prints, and pass back the one-time authorization
+ * code. Tokens never reach this app, and every turn afterwards runs on
+ * whichever account the person signed in with — theirs, not the author's.
  */
 function ClaudeStatus() {
   const [h, setH] = useState<Health | null>(null);
   const [checking, setChecking] = useState(true);
+  const [login, setLogin] = useState<{ id: string; url: string } | null>(null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const check = useCallback(async () => {
     setChecking(true);
@@ -1726,6 +1735,76 @@ function ClaudeStatus() {
   useEffect(() => {
     check();
   }, [check]);
+
+  const post = async (body: Record<string, unknown>) => {
+    const r = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  };
+
+  const startLogin = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { ok: good, data } = await post({ action: "start" });
+      if (good && data.url) {
+        setLogin({ id: data.id, url: data.url });
+        // The CLI opens this itself, but only on the machine running the
+        // server. Same machine here — belt and braces if that fails.
+        window.open(data.url, "_blank", "noopener");
+      } else {
+        setErr(data.error ?? "Could not start sign-in.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (!login || !code.trim()) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const { ok: good, data } = await post({
+        action: "code",
+        id: login.id,
+        code: code.trim(),
+      });
+      if (good) {
+        setLogin(null);
+        setCode("");
+        await check();
+      } else {
+        setErr(data.error ?? "Sign-in failed.");
+        // A dropped session can't be resumed — send them back to the button.
+        if (data.error && /no longer open/i.test(data.error)) setLogin(null);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelLogin = async () => {
+    if (login) await post({ action: "cancel", id: login.id });
+    setLogin(null);
+    setCode("");
+    setErr(null);
+  };
+
+  const signOut = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { ok: good, data } = await post({ action: "logout" });
+      if (!good) setErr(data.error ?? "Sign-out failed.");
+      await check();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const ok = h?.installed && h?.loggedIn;
   const state = checking
@@ -1775,7 +1854,63 @@ function ClaudeStatus() {
           </table>
         )}
 
-        {h?.remedy && <pre className="cli-remedy">{h.remedy}</pre>}
+        {/* Not installed is the one thing sign-in cannot fix. */}
+        {h && !h.installed && h.remedy && (
+          <pre className="cli-remedy">{h.remedy}</pre>
+        )}
+
+        {h?.installed && !h.loggedIn && !login && (
+          <div className="cli-auth">
+            <p className="cli-note">
+              Sign in with your own Anthropic account. Claude Code performs the
+              sign-in and stores it in your Keychain — this app never sees your
+              password or tokens, and every turn afterwards runs on your
+              subscription.
+            </p>
+            <button className="btn btn-sm" disabled={busy} onClick={() => void startLogin()}>
+              {busy ? "Starting…" : "Sign in to Claude"}
+            </button>
+          </div>
+        )}
+
+        {login && (
+          <div className="cli-auth">
+            <p className="cli-note">
+              A browser tab should have opened. Approve the request, copy the
+              code Anthropic gives you, and paste it here.
+            </p>
+            <p className="cli-note">
+              Didn&rsquo;t open?{" "}
+              <a href={login.url} target="_blank" rel="noreferrer noopener">
+                Open the sign-in page
+              </a>
+              .
+            </p>
+            <div className="tg-input">
+              <input
+                value={code}
+                placeholder="Paste the code"
+                autoFocus
+                onChange={(e) => setCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitCode();
+                }}
+              />
+              <button
+                className="btn btn-sm"
+                disabled={busy || !code.trim()}
+                onClick={() => void submitCode()}
+              >
+                {busy ? "Checking…" : "Finish"}
+              </button>
+            </div>
+            <button className="btn btn-sm" disabled={busy} onClick={() => void cancelLogin()}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {err && <p className="cli-err">{err}</p>}
 
         {ok && h?.billed && (
           <p className="cli-note">
@@ -1799,6 +1934,12 @@ function ClaudeStatus() {
             Running on your subscription — nothing is billed per token.
             Credentials stay in the macOS Keychain; this app never reads them.
           </p>
+        )}
+
+        {ok && (
+          <button className="btn btn-sm" disabled={busy} onClick={() => void signOut()}>
+            Sign out
+          </button>
         )}
       </div>
     </div>

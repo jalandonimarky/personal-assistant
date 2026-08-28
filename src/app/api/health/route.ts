@@ -11,8 +11,13 @@ export const dynamic = "force-dynamic";
  *
  * Detection only. Credentials live in the macOS Keychain under
  * "Claude Code-credentials" and belong to Claude Code — this app never reads,
- * stores, or prompts for them, and adding an auth flow here would mean it did.
- * `claude auth status` reports state without exposing any secret.
+ * stores, or prompts for them. `claude auth status` reports state without
+ * exposing any secret.
+ *
+ * Signing in is a separate route (src/app/api/auth). It drives the CLI's own
+ * `claude auth login` rather than handling credentials here, so the invariant
+ * above still holds: this app can start a sign-in and observe the result, but
+ * never learns the token.
  */
 
 // `next dev` can inherit a PATH without the user's npm global bin. Same fix as
@@ -63,7 +68,7 @@ export async function GET() {
       version,
       loggedIn: false,
       remedy:
-        "Claude Code is installed but not signed in. In a terminal:\n\nclaude auth login",
+        "Claude Code is installed but not signed in. Use Sign in below, or run `claude auth login` in a terminal.",
     });
   }
 
@@ -83,6 +88,6 @@ export async function GET() {
     apiKeyPresent,
     remedy: auth.loggedIn
       ? null
-      : "Claude Code is installed but not signed in. In a terminal:\n\nclaude auth login",
+      : "Claude Code is installed but not signed in. Use Sign in below, or run `claude auth login` in a terminal.",
   });
 }

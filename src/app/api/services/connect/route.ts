@@ -152,6 +152,25 @@ async function finishConnectorLogin(id: string, redirect: string) {
       );
 }
 
+/**
+ * Provider credentials the panel can set, kept in the Keychain.
+ *
+ * These are entered here rather than read from the environment because the app
+ * normally runs as a launchd agent: there is no interactive shell to export a
+ * variable into, so "set GOOGLE_CLIENT_ID and restart" is advice nobody can
+ * follow. Everything needed to reach a Google sign-in is now enterable in the
+ * UI on a fresh machine.
+ */
+async function keychainSet(service: string, value: string) {
+  return exec("security", [
+    "add-generic-password", "-U", "-s", service, "-a", "default", "-w", value,
+  ], undefined, 20_000);
+}
+
+async function keychainDelete(service: string) {
+  return exec("security", ["delete-generic-password", "-s", service, "-a", "default"], undefined, 20_000);
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const svc = typeof body.id === "string" ? getService(body.id) : null;
@@ -196,6 +215,42 @@ export async function POST(req: Request) {
       },
       { status: 400 },
     );
+  }
+
+  if (body.action === "configure" || body.action === "configure-clear") {
+    const cc = svc.clientConfig;
+    if (!cc) {
+      return NextResponse.json(
+        { error: `${svc.label} has no client to configure.` },
+        { status: 400 },
+      );
+    }
+
+    if (body.action === "configure-clear") {
+      await keychainDelete(cc.idService);
+      if (cc.secretService) await keychainDelete(cc.secretService);
+      return NextResponse.json({ ok: true, message: "Client removed." });
+    }
+
+    const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
+    if (!clientId) {
+      return NextResponse.json({ error: "No client ID provided." }, { status: 400 });
+    }
+    const r = await keychainSet(cc.idService, clientId);
+    if (!r.ok) {
+      return NextResponse.json(
+        { error: r.err || "Could not write to the Keychain." },
+        { status: 500 },
+      );
+    }
+
+    const secret = typeof body.clientSecret === "string" ? body.clientSecret.trim() : "";
+    if (cc.secretService) {
+      // An empty secret clears any previous one rather than silently keeping it.
+      if (secret) await keychainSet(cc.secretService, secret);
+      else await keychainDelete(cc.secretService);
+    }
+    return NextResponse.json({ ok: true, message: "Client saved. Now Set up, then Sign in." });
   }
 
   if (!svc.script) {

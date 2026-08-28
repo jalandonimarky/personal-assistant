@@ -33,16 +33,28 @@ const USERINFO = "https://openidconnect.googleapis.com/v1/userinfo";
 /** Identifies the signed-in account in the UI; costs nothing else. */
 export const IDENTITY_SCOPES = ["openid", "email"];
 
+/** Where the OAuth client is kept when it wasn't supplied by the environment. */
+export const CLIENT_ID_SERVICE = "google-oauth-client-id";
+export const CLIENT_SECRET_SERVICE = "google-oauth-client-secret";
+
 /**
  * @param service  keychain service name, unique per Google server
  * @param scopes   OAuth scopes this server needs
  * @param port     loopback port for the redirect
+ *
+ * The client id comes from the environment if it is there, and otherwise from
+ * the Keychain. THE KEYCHAIN PATH IS THE IMPORTANT ONE: this app normally runs
+ * as a launchd agent, which has no interactive shell to export a variable into
+ * — telling someone to "set GOOGLE_CLIENT_ID in the shell running this app" is
+ * advice they cannot act on. Settings writes it here instead.
  */
-export function makeConfig({ service, scopes, port }) {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+export async function makeConfig({ service, scopes, port }) {
+  const clientId =
+    process.env.GOOGLE_CLIENT_ID || (await keychain.get(CLIENT_ID_SERVICE));
   if (!clientId) {
     throw new Error(
-      "GOOGLE_CLIENT_ID must be set. See mcp/google/README.md for the one-time setup.",
+      "No Google OAuth client configured. Add one in Settings → Connections, " +
+        "or see mcp/google/README.md.",
     );
   }
   return {
@@ -50,10 +62,16 @@ export function makeConfig({ service, scopes, port }) {
     scopes: [...IDENTITY_SCOPES, ...scopes],
     clientId,
     // Optional: absent for client types that do not issue one.
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || null,
+    clientSecret:
+      process.env.GOOGLE_CLIENT_SECRET || (await keychain.get(CLIENT_SECRET_SERVICE)) || null,
     port: Number(process.env[`${service.toUpperCase().replace(/-/g, "_")}_PORT`] || port),
     account: process.env.GOOGLE_ACCOUNT || "default",
   };
+}
+
+/** Is an OAuth client configured at all? Used by the panel before offering sign-in. */
+export async function clientConfigured() {
+  return Boolean(process.env.GOOGLE_CLIENT_ID || (await keychain.get(CLIENT_ID_SERVICE)));
 }
 
 // ---------------- PKCE ----------------

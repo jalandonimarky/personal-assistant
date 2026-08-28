@@ -28,6 +28,19 @@ const env = { ...process.env, PATH: `${PATH_EXTRA}:${process.env.PATH ?? ""}` };
 
 export type State = "ready" | "needs-auth" | "needs-setup" | "unavailable";
 
+/** Does a Keychain entry exist? Read-only — the value is never returned. */
+async function keychainHas(service: string): Promise<boolean> {
+  try {
+    await run("security", ["find-generic-password", "-s", service, "-a", "default"], {
+      env,
+      timeout: 15000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * `claude mcp list` health-checks every connected server over the network and
  * takes ~6s, so probing on every panel open is wasteful. Cached briefly.
@@ -66,6 +79,7 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
     writeGrants: svc.writeGrants,
     writeNote: svc.writeNote,
     authNote: svc.authNote,
+    clientConfig: svc.clientConfig,
     hasWrite: hasWrite(svc),
     /** Is this server registered with Claude Code? Gates Disconnect. */
     registered: reg.has(svc.mcpName),
@@ -109,6 +123,25 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
       detail: `Not enabled on your Claude account. Turn the ${svc.label} connector on, then re-check.`,
       setupUrl: svc.auth.setupUrl,
     };
+  }
+
+  /**
+   * A missing provider client is the FIRST thing to report. Registering the
+   * server or offering Sign in before it exists just produces a failure two
+   * steps later, which is exactly how this read as "no way to sign in".
+   */
+  if (svc.clientConfig) {
+    const envHas = (svc.clientConfig.idService === "google-oauth-client-id"
+      ? Boolean(process.env.GOOGLE_CLIENT_ID)
+      : false);
+    if (!envHas && !(await keychainHas(svc.clientConfig.idService))) {
+      return {
+        ...base,
+        state: "needs-setup" as State,
+        detail: "Add an OAuth client before signing in.",
+        canConfigure: true,
+      };
+    }
   }
 
   if (!known) {

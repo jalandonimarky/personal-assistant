@@ -123,7 +123,7 @@ const tools = [
 ];
 
 async function call(name, args = {}) {
-  const c = cfg();
+  const c = await cfg();
 
   switch (name) {
     case "drive_search": {
@@ -232,7 +232,7 @@ async function call(name, args = {}) {
 const arg = process.argv[2];
 if (arg?.startsWith("--")) {
   await cli(async () => {
-    const handled = await runCli(cfg(), "Google Drive", arg);
+    const handled = await runCli(await cfg(), "Google Drive", arg);
     if (!handled) throw new Error(`Unknown flag: ${arg}`);
   });
 } else {

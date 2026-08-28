@@ -57,14 +57,21 @@ individuals do not need further approval afterwards.
    asks, the URIs are `http://localhost:53683/callback` (Gmail) and
    `http://localhost:53684/callback` (Drive).
 
-5. **Export the client id** in the shell that runs the app, then restart it:
+5. **Paste it into the app.** Open **Settings → Connections**, press **Add
+   client** on Gmail or Drive, and paste the client ID (and the secret, if your
+   client type issued one). One client serves both — entering it on either card
+   configures the other.
 
-   ```bash
-   export GOOGLE_CLIENT_ID='....apps.googleusercontent.com'
-   export GOOGLE_CLIENT_SECRET='...'   # only if your client type issued one
-   ```
+Then, on each card: **Set up** to register the server, then **Sign in**.
 
-Then open **Settings → Connections** and press **Sign in** on Gmail or Drive.
+Nothing has to be exported into a shell. That matters because the app normally
+runs as a launchd agent, which has no interactive shell to export into — an
+earlier version told people to set `GOOGLE_CLIENT_ID` and restart, which was
+advice they could not act on. The environment variable still wins if it is set,
+for anyone running the dev server by hand.
+
+Everything is stored in the macOS Keychain (`google-oauth-client-id`,
+`google-oauth-client-secret`), and **Remove client** in the same panel clears it.
 
 ### On that "secret"
 

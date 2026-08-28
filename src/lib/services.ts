@@ -77,7 +77,38 @@ export interface Service {
   authNote?: string;
   /** Where the one-time setup is written down. Not derivable: Gmail and Drive share one. */
   setupDoc?: string;
+  /**
+   * A provider-level credential that must exist before anyone can sign in —
+   * Google's OAuth client, for instance. Kept in the Keychain and entered in
+   * the panel rather than read from the environment: this app usually runs as
+   * a launchd agent, which has no shell to export a variable into.
+   */
+  clientConfig?: {
+    idService: string;
+    idLabel: string;
+    secretService?: string;
+    secretLabel?: string;
+    /** Where to create it. */
+    url: string;
+    help: string;
+  };
 }
+
+/**
+ * One OAuth client serves both Google servers, so the descriptor is shared.
+ * Entering it once in the panel configures Gmail and Drive together.
+ */
+const GOOGLE_CLIENT_CONFIG = {
+  idService: "google-oauth-client-id",
+  idLabel: "Client ID",
+  secretService: "google-oauth-client-secret",
+  secretLabel: "Client secret (only if your client type issued one)",
+  url: "https://console.cloud.google.com/apis/credentials",
+  help:
+    "Create an OAuth client (type: Desktop app) in a Google Cloud project with " +
+    "the Gmail and Drive APIs enabled, then paste it here. Full steps are in " +
+    "mcp/google/README.md.",
+};
 
 export const SERVICES: Service[] = [
   {
@@ -87,8 +118,8 @@ export const SERVICES: Service[] = [
     mcpName: "gmail",
     script: "mcp/gmail/src/index.mjs",
     auth: { kind: "oauth" },
-    requiredEnv: ["GOOGLE_CLIENT_ID"],
     setupDoc: "mcp/google/README.md",
+    clientConfig: GOOGLE_CLIENT_CONFIG,
     read: [
       "mcp__gmail__gmail_search",
       "mcp__gmail__gmail_get_thread",
@@ -130,8 +161,8 @@ export const SERVICES: Service[] = [
     mcpName: "drive",
     script: "mcp/drive/src/index.mjs",
     auth: { kind: "oauth" },
-    requiredEnv: ["GOOGLE_CLIENT_ID"],
     setupDoc: "mcp/google/README.md",
+    clientConfig: GOOGLE_CLIENT_CONFIG,
     // The API reads native Google Docs and Sheets as actual content. A synced
     // local folder cannot — Google-native files sync as .gdoc/.gsheet stubs
     // holding a document id, not the document.

@@ -37,6 +37,16 @@ interface ServiceStatus {
   writeNote?: string;
   /** What signing in asks the provider for — shown before the person consents. */
   authNote?: string;
+  /** A provider credential is missing; the panel can take it. */
+  canConfigure?: boolean;
+  clientConfig?: {
+    idService: string;
+    idLabel: string;
+    secretService?: string;
+    secretLabel?: string;
+    url: string;
+    help: string;
+  };
   hasWrite?: boolean;
   auth:
     | { kind: "account"; setupUrl?: string }
@@ -239,6 +249,9 @@ export default function Page() {
   const [redirectVal, setRedirectVal] = useState("");
   /** Two-step on Disconnect: it unregisters the server, not just this turn. */
   const [confirmOff, setConfirmOff] = useState<string | null>(null);
+  const [configFor, setConfigFor] = useState<string | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
 
   const startConnector = useCallback(
     async (id: string) => {
@@ -296,6 +309,39 @@ export default function Page() {
       }
     },
     [connectorLogin, redirectVal, loadCatalog],
+  );
+
+  const saveClient = useCallback(
+    async (id: string) => {
+      if (!clientId.trim()) return;
+      setSvcBusy(id);
+      setSvcMsg(null);
+      try {
+        const r = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id,
+            action: "configure",
+            clientId: clientId.trim(),
+            clientSecret: clientSecret.trim(),
+          }),
+        });
+        const d = await r.json();
+        setSvcMsg({ id, text: d.error ?? d.message ?? "Saved.", bad: !r.ok });
+        if (r.ok) {
+          setConfigFor(null);
+          setClientId("");
+          setClientSecret("");
+          await loadCatalog(true);
+        }
+      } catch (e) {
+        setSvcMsg({ id, text: String(e), bad: true });
+      } finally {
+        setSvcBusy(null);
+      }
+    },
+    [clientId, clientSecret, loadCatalog],
   );
 
   const svcAction = useCallback(
@@ -1162,6 +1208,15 @@ export default function Page() {
                             >
                               <span className="knob" />
                             </button>
+                          ) : c.state === "needs-setup" && c.canConfigure ? (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() =>
+                                setConfigFor(configFor === c.id ? null : c.id)
+                              }
+                            >
+                              Add client
+                            </button>
                           ) : c.state === "needs-setup" && c.canRegister ? (
                             <button
                               className="btn btn-sm"
@@ -1214,7 +1269,11 @@ export default function Page() {
                           it: sign out clears credentials, disconnect
                           unregisters the server entirely.
                         */}
-                        {(c.state === "ready" || c.state === "needs-auth") && (
+                        {(c.state === "ready" ||
+                          c.state === "needs-auth" ||
+                          // A configured client is worth being able to undo even
+                          // before the server is registered.
+                          (c.clientConfig && !c.canConfigure)) && (
                           <div className="svc-manage">
                             {c.auth.kind === "account" ? (
                               <>
@@ -1248,6 +1307,15 @@ export default function Page() {
                                     Sign out
                                   </button>
                                 )}
+                                {c.clientConfig && !c.canConfigure && (
+                                  <button
+                                    className="linkish"
+                                    disabled={busy}
+                                    onClick={() => void svcAction(c.id, "configure-clear")}
+                                  >
+                                    Remove client
+                                  </button>
+                                )}
                                 {c.registered &&
                                   (confirmOff === c.id ? (
                                     <>
@@ -1279,6 +1347,46 @@ export default function Page() {
                                   ))}
                               </>
                             )}
+                          </div>
+                        )}
+
+                        {configFor === c.id && c.clientConfig && (
+                          <div className="svc-token">
+                            <p>{c.clientConfig.help}</p>
+                            <div className="svc-token-row">
+                              <input
+                                value={clientId}
+                                placeholder={c.clientConfig.idLabel}
+                                autoFocus
+                                onChange={(e) => setClientId(e.target.value)}
+                              />
+                            </div>
+                            {c.clientConfig.secretService && (
+                              <div className="svc-token-row">
+                                <input
+                                  type="password"
+                                  value={clientSecret}
+                                  placeholder={c.clientConfig.secretLabel ?? "Client secret"}
+                                  onChange={(e) => setClientSecret(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && clientId.trim())
+                                      void saveClient(c.id);
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div className="svc-token-row">
+                              <button
+                                className="btn btn-sm btn-accent"
+                                disabled={busy || !clientId.trim()}
+                                onClick={() => void saveClient(c.id)}
+                              >
+                                {busy ? "Saving…" : "Save client"}
+                              </button>
+                            </div>
+                            <a href={c.clientConfig.url} target="_blank" rel="noreferrer noopener">
+                              Create one in Google Cloud →
+                            </a>
                           </div>
                         )}
 

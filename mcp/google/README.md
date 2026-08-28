@@ -53,21 +53,20 @@ individuals do not need further approval afterwards.
    | **Application type** | **Desktop app** |
    | **Name** | e.g. `Assistant — Google` |
 
-   **Desktop app** matters: Google allows any loopback port for that client
-   type, so there is nothing to register and nothing to change if a port moves.
+   **It must be Desktop app. A Web application client will not work.**
 
-   If you use **Web application** instead, loopback still works but the URIs
-   must be registered exactly — add both, and note it is `127.0.0.1`, not
-   `localhost` (Google matches these as different strings):
+   This is the installed-app flow: the server opens a loopback listener on a
+   local port and Google redirects the browser back to it. Google permits that
+   loopback redirect for Desktop clients only — any port, nothing to register.
+   A Web application client rejects the same request with a bare
+   **`400: … the server cannot process the request because it is malformed`**,
+   which names no parameter and sends you hunting through a request that is
+   in fact correct.
 
-   ```
-   http://127.0.0.1:53683/callback    # Gmail
-   http://127.0.0.1:53684/callback    # Drive
-   ```
-
-   Neither is the app's own port (4317). That port serves the web UI and has
-   nothing to do with the OAuth redirect. "Authorized JavaScript origins" is
-   unused — this is not a browser client.
+   So there is nothing to put in "Authorized redirect URIs", and nothing in
+   "Authorized JavaScript origins" — a Desktop client shows neither. In
+   particular the app's own port (4317) is not a redirect URI; it serves the
+   web UI and has no part in OAuth.
 
 5. **Paste it into the app.** Open **Settings → Connections**, press **Add
    client** on Gmail or Drive, and paste the client ID (and the secret, if your
@@ -141,6 +140,11 @@ and sign in again.
 
 **Signed out after a week** — the consent screen is in *Testing*. Publish it, or
 switch to Internal.
+
+**Bare "Error 400 … malformed"** with no parameter named — the OAuth client is
+a **Web application** type. This flow needs **Desktop app**; Google only allows
+the loopback redirect for that type. Create a new Desktop client and paste it
+in; there is nothing to fix on the existing one.
 
 **"Error 403: access_denied"**, or *"has not completed the Google verification
 process… can only be accessed by developer-approved testers"* — the consent

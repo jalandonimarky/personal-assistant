@@ -154,12 +154,81 @@ export function write(next: Store): void {
   fs.renameSync(tmp, DATA_FILE);
 }
 
-/** Read-modify-write against disk, so concurrent routes can't clobber. */
+const LOCK_FILE = `${DATA_FILE}.lock`;
+/** A writer that has held the lock longer than this is assumed dead. */
+const LOCK_STALE_MS = 10_000;
+/** Give up rather than hang a request forever. */
+const LOCK_WAIT_MS = 5_000;
+
+/** Block without spinning the CPU. Everything in this module is synchronous. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Cross-PROCESS lock. It cannot be a module-level mutex: Next bundles each route
+ * handler separately, so module state isn't shared between them — and the
+ * Telegram relay is a different process entirely. `wx` is O_EXCL, which is
+ * atomic on every filesystem we care about.
+ */
+function acquire(): () => void {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const deadline = Date.now() + LOCK_WAIT_MS;
+
+  for (;;) {
+    try {
+      const fd = fs.openSync(LOCK_FILE, "wx");
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      return () => {
+        try {
+          fs.unlinkSync(LOCK_FILE);
+        } catch {
+          // Already gone: a stale-lock breaker got here first. Nothing to undo.
+        }
+      };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+
+      // A process killed mid-write would otherwise wedge every future write.
+      try {
+        if (Date.now() - fs.statSync(LOCK_FILE).mtimeMs > LOCK_STALE_MS) {
+          fs.unlinkSync(LOCK_FILE);
+          continue;
+        }
+      } catch {
+        // The lock vanished while we were inspecting it — just retry.
+      }
+
+      if (Date.now() > deadline) {
+        throw new Error(
+          "store.json is locked by another writer and did not release in time.",
+        );
+      }
+      sleepSync(25);
+    }
+  }
+}
+
+/**
+ * Read-modify-write against disk, under a lock.
+ *
+ * The lock is the point. write() is atomic (tmp + rename) so the file can never
+ * be truncated, but atomicity alone does not make read-modify-write safe: two
+ * writers that both read, then both write, produce last-writer-wins over the
+ * WHOLE store, and the loser's turn disappears with no error. That became a real
+ * possibility the moment the Telegram relay started running alongside the UI.
+ */
 export function mutate(fn: (s: Store) => void): Store {
-  const s = read();
-  fn(s);
-  write(s);
-  return s;
+  const release = acquire();
+  try {
+    const s = read();
+    fn(s);
+    write(s);
+    return s;
+  } finally {
+    release();
+  }
 }
 
 export const uid = () => randomUUID();

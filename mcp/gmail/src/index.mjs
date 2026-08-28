@@ -170,18 +170,58 @@ const tools = [
   },
   {
     name: "gmail_modify_labels",
-    description: "Add or remove labels on a message. Reversible, and never deletes mail.",
+    description:
+      "Add or remove labels on a message. Accepts label names or ids — names are " +
+      "resolved for you. Reversible, and never deletes mail.",
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Message id." },
-        add: { type: "array", items: { type: "string" }, description: "Label ids to add." },
-        remove: { type: "array", items: { type: "string" }, description: "Label ids to remove." },
+        add: { type: "array", items: { type: "string" }, description: "Label names or ids to add." },
+        remove: {
+          type: "array",
+          items: { type: "string" },
+          description: "Label names or ids to remove.",
+        },
       },
       required: ["id"],
     },
   },
+  {
+    name: "gmail_create_label",
+    description: "Create a new label. Fails plainly if one with that name already exists.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string", description: "Label name. Use 'Parent/Child' to nest." } },
+      required: ["name"],
+    },
+  },
+  {
+    name: "gmail_update_label",
+    description: "Rename an existing label. The label keeps its id, so nothing loses it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Current label name or id." },
+        name: { type: "string", description: "New name." },
+      },
+      required: ["label", "name"],
+    },
+  },
 ];
+
+/** Labels by id and by lowercased name, so callers can pass either. */
+async function labelIndex(c) {
+  const r = await api(c, `${API}/labels`);
+  const byId = new Map();
+  const byName = new Map();
+  for (const l of r.labels ?? []) {
+    const rec = { id: l.id, name: l.name, type: l.type };
+    byId.set(l.id, rec);
+    byName.set(l.name.toLowerCase(), rec);
+  }
+  return { byId, byName };
+}
 
 async function call(name, args = {}) {
   const c = await cfg();
@@ -238,14 +278,66 @@ async function call(name, args = {}) {
     }
 
     case "gmail_modify_labels": {
+      // Models reach for the label they can see, which is the name. Resolving
+      // here turns a confusing 400 from Gmail into either the right call or a
+      // sentence saying which label does not exist.
+      const known = await labelIndex(c);
+      const resolve = (list) =>
+        (list ?? []).map((v) => {
+          const hit = known.byId.get(v) ?? known.byName.get(v.toLowerCase());
+          if (!hit) {
+            throw new Error(
+              `No label called "${v}". Existing labels: ${[...known.byName.values()]
+                .map((l) => l.name)
+                .slice(0, 30)
+                .join(", ")}. Create it with gmail_create_label first.`,
+            );
+          }
+          return hit.id;
+        });
+
       const r = await api(c, `${API}/messages/${encodeURIComponent(args.id)}/modify`, {
         method: "POST",
         body: JSON.stringify({
-          addLabelIds: args.add ?? [],
-          removeLabelIds: args.remove ?? [],
+          addLabelIds: resolve(args.add),
+          removeLabelIds: resolve(args.remove),
         }),
       });
       return { id: r.id, labelIds: r.labelIds };
+    }
+
+    case "gmail_create_label": {
+      const name = String(args.name ?? "").trim();
+      if (!name) throw new Error("A label name is required.");
+      const known = await labelIndex(c);
+      if (known.byName.has(name.toLowerCase())) {
+        const existing = known.byName.get(name.toLowerCase());
+        return { existing: existing.id, name: existing.name, note: "Already exists — nothing created." };
+      }
+      const r = await api(c, `${API}/labels`, {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          labelListVisibility: "labelShow",
+          messageListVisibility: "show",
+        }),
+      });
+      return { created: r.id, name: r.name };
+    }
+
+    case "gmail_update_label": {
+      const known = await labelIndex(c);
+      const target =
+        known.byId.get(String(args.label)) ?? known.byName.get(String(args.label).toLowerCase());
+      if (!target) throw new Error(`No label called "${args.label}".`);
+      if (target.type === "system") {
+        throw new Error(`"${target.name}" is a system label and cannot be renamed.`);
+      }
+      const r = await api(c, `${API}/labels/${encodeURIComponent(target.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: String(args.name) }),
+      });
+      return { id: r.id, name: r.name, previousName: target.name };
     }
 
     default:

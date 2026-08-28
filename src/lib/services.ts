@@ -140,6 +140,11 @@ export const SERVICES: Service[] = [
       "mcp__claude_ai_Gmail__update_draft",
       "mcp__claude_ai_Gmail__label_message",
       "mcp__claude_ai_Gmail__label_thread",
+      // Creating and renaming a label are reversible and touch no mail.
+      // delete_label is not offered: it strips the label off every message
+      // that carries it, and nothing here would ask first.
+      "mcp__claude_ai_Gmail__create_label",
+      "mcp__claude_ai_Gmail__update_label",
     ],
     grants: [
       "Search your mailbox and read the messages it finds",
@@ -149,11 +154,12 @@ export const SERVICES: Service[] = [
     writeGrants: [
       "Draft a reply for you to review and send yourself",
       "Edit a draft it created",
-      "Apply and organise labels",
+      "Create and rename labels, and apply them to mail",
     ],
     withheld: [
       "Send, reply to, or forward anything",
       "Trash messages or mark them as spam",
+      "Delete a label",
     ],
   },
   {
@@ -224,6 +230,8 @@ export const SERVICES: Service[] = [
       "mcp__gmail__gmail_create_draft",
       "mcp__gmail__gmail_update_draft",
       "mcp__gmail__gmail_modify_labels",
+      "mcp__gmail__gmail_create_label",
+      "mcp__gmail__gmail_update_label",
     ],
     grants: [
       "Search your mailbox and read the messages it finds",
@@ -233,11 +241,12 @@ export const SERVICES: Service[] = [
     writeGrants: [
       "Draft a reply for you to review and send yourself",
       "Edit a draft it created",
-      "Apply and organise labels",
+      "Create and rename labels, and apply them to mail",
     ],
     withheld: [
       "Send, reply to, or forward anything",
       "Trash messages or mark them as spam",
+      "Delete a label",
     ],
     // Not merely unlisted: gmail.send is never requested at sign-in, so a send
     // is un-grantable rather than just withheld.

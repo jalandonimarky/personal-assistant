@@ -87,7 +87,7 @@ this client always uses it. The secret is sent only when you set it.
 
 | Server | Scopes | Consequence |
 |---|---|---|
-| Gmail | `gmail.readonly`, `gmail.compose`, `gmail.labels` | Read, draft, label. **`gmail.send` is never requested**, so sending is un-grantable rather than merely unlisted. |
+| Gmail | `gmail.readonly`, `gmail.compose`, `gmail.labels` | Read, draft, and create/rename/apply labels. **`gmail.send` is never requested**, so sending is un-grantable rather than merely unlisted. |
 | Drive | `drive.readonly`, `drive.file` | Read anything in your Drive. Write only to files this assistant created — `drive.file` cannot touch a document it has never seen. |
 
 Both also request `openid` and `email`, purely so the panel can show which
@@ -101,7 +101,8 @@ assistant did not make.
 ### Not offered at any level
 
 Sending, replying, forwarding, trashing, marking spam, sharing, changing
-permissions, deleting. `claude -p` is non-interactive and Authoring runs with
+permissions, deleting — **including deleting a label**, which strips it off
+every message carrying it. `claude -p` is non-interactive and Authoring runs with
 `acceptEdits`, so an allowed tool fires with no confirmation and no undo. A
 draft a human sends is a different risk from a send a model performs.
 

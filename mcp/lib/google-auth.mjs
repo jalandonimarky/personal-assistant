@@ -94,7 +94,7 @@ const page = (title, msg) =>
 function awaitCode(port, expectedState) {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
-      const url = new URL(req.url, `http://localhost:${port}`);
+      const url = new URL(req.url, `http://127.0.0.1:${port}`);
       if (url.pathname !== "/callback") {
         res.writeHead(404).end("Not found");
         return;
@@ -156,7 +156,10 @@ async function tokenRequest(cfg, params) {
 export async function login(cfg) {
   const { verifier, challenge } = pkce();
   const state = b64url(randomBytes(16));
-  const redirectUri = `http://localhost:${cfg.port}/callback`;
+  // 127.0.0.1, not localhost. Google matches redirect URIs as exact strings,
+  // so the two are different registrations — and 127.0.0.1 is the form Google
+  // documents for loopback, so it is the one people register.
+  const redirectUri = `http://127.0.0.1:${cfg.port}/callback`;
 
   const url =
     `${AUTH_ENDPOINT}?` +

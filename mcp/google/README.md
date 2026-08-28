@@ -53,9 +53,21 @@ individuals do not need further approval afterwards.
    | **Application type** | **Desktop app** |
    | **Name** | e.g. `Assistant — Google` |
 
-   Google adds the loopback redirect for Desktop clients automatically. If it
-   asks, the URIs are `http://localhost:53683/callback` (Gmail) and
-   `http://localhost:53684/callback` (Drive).
+   **Desktop app** matters: Google allows any loopback port for that client
+   type, so there is nothing to register and nothing to change if a port moves.
+
+   If you use **Web application** instead, loopback still works but the URIs
+   must be registered exactly — add both, and note it is `127.0.0.1`, not
+   `localhost` (Google matches these as different strings):
+
+   ```
+   http://127.0.0.1:53683/callback    # Gmail
+   http://127.0.0.1:53684/callback    # Drive
+   ```
+
+   Neither is the app's own port (4317). That port serves the web UI and has
+   nothing to do with the OAuth redirect. "Authorized JavaScript origins" is
+   unused — this is not a browser client.
 
 5. **Paste it into the app.** Open **Settings → Connections**, press **Add
    client** on Gmail or Drive, and paste the client ID (and the secret, if your

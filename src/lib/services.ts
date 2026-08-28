@@ -91,6 +91,9 @@ export interface Service {
   clientConfig?: {
     idService: string;
     idLabel: string;
+    /** One line shown while it is missing. An OAuth client and an app password
+     *  are not the same thing, and the panel should not call them the same. */
+    prompt?: string;
     secretService?: string;
     secretLabel?: string;
     /** Where to create it. */
@@ -106,6 +109,7 @@ export interface Service {
 const GOOGLE_CLIENT_CONFIG = {
   idService: "google-oauth-client-id",
   idLabel: "Client ID",
+  prompt: "Add an OAuth client before signing in.",
   secretService: "google-oauth-client-secret",
   secretLabel: "Client secret (only if your client type issued one)",
   url: "https://console.cloud.google.com/apis/credentials",
@@ -151,6 +155,49 @@ export const SERVICES: Service[] = [
       "Send, reply to, or forward anything",
       "Trash messages or mark them as spam",
     ],
+  },
+  {
+    id: "gmail-imap",
+    label: "Gmail (app password)",
+    blurb: "Read and search your mail with no Google Cloud project",
+    mcpName: "gmail-imap",
+    script: "mcp/gmail-imap/src/index.mjs",
+    auth: { kind: "none" },
+    setupDoc: "mcp/gmail-imap/README.md",
+    authNote:
+      "No app to create and no client ID. Generate an app password in your Google account and paste it here.",
+    clientConfig: {
+      idService: "gmail-imap-user",
+      idLabel: "Your Gmail address",
+      prompt: "Add your address and an app password.",
+      secretService: "gmail-imap-app-password",
+      secretLabel: "16-character app password",
+      url: "https://myaccount.google.com/apppasswords",
+      help:
+        "Requires 2-Step Verification on the account. Google Account → Security → " +
+        "App passwords, generate one, and paste it with your address. Steps are in " +
+        "mcp/gmail-imap/README.md.",
+    },
+    read: [
+      "mcp__gmail_imap__gmail_search",
+      "mcp__gmail_imap__gmail_get_message",
+      "mcp__gmail_imap__gmail_list_mailboxes",
+    ],
+    grants: [
+      "Search your mailbox with Gmail's own query syntax",
+      "Read any message it finds, in full",
+      "List your mailboxes and labels",
+    ],
+    withheld: [
+      "Send, reply to, or forward anything",
+      "Delete, flag, or move mail",
+      "Mark anything as read",
+    ],
+    // Not a policy choice that could be reversed by a flag: the mailbox is
+    // opened with EXAMINE rather than SELECT, and the client implements no
+    // APPEND, STORE or EXPUNGE. There is no write path to offer.
+    writeNote:
+      "Read-only by construction — the connection cannot write, so there is no write level. Use the connector or an OAuth client for drafts and labels.",
   },
   {
     id: "gmail-own",

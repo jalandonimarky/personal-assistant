@@ -1234,6 +1234,15 @@ export default function Page() {
                             >
                               Enable at claude.ai
                             </a>
+                          ) : c.state === "needs-auth" && c.clientConfig && !c.canLogin ? (
+                            <button
+                              className="btn btn-sm"
+                              onClick={() =>
+                                setConfigFor(configFor === c.id ? null : c.id)
+                              }
+                            >
+                              Update credentials
+                            </button>
                           ) : c.state === "needs-auth" && c.canLogin ? (
                             <button
                               className="btn btn-sm"
@@ -2546,6 +2555,98 @@ function TelegramSettings() {
   );
 }
 
+
+interface DriveFolder {
+  installed: boolean;
+  detected: { path: string; added: boolean }[];
+  hint?: string | null;
+}
+
+/**
+ * Google Drive with no credential at all: Drive for Desktop mounts it as a
+ * folder, and readable folders are already handed to every turn as --add-dir.
+ */
+function DriveFolderSettings() {
+  const [st, setSt] = useState<DriveFolder | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/drive-folder", { cache: "no-store" });
+      setSt(await r.json());
+    } catch {
+      setSt(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const toggle = async (p: string, added: boolean) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/drive-folder", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: p, action: added ? "remove" : "add" }),
+      });
+      const d = await r.json();
+      setMsg(d.error ?? d.message ?? null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="field">
+      <label>Google Drive folder</label>
+      <div className="tg">
+        {!st ? (
+          <p className="tg-hint">Checking…</p>
+        ) : !st.installed ? (
+          <>
+            <p className="tg-hint">{st.hint}</p>
+            <a
+              className="btn btn-sm"
+              href="https://www.google.com/drive/download/"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Get Drive for Desktop
+            </a>
+          </>
+        ) : (
+          st.detected.map((d) => (
+            <div key={d.path} className="tg-row">
+              <span className={`dot ${d.added ? "ok" : "off"}`} />
+              <code style={{ fontSize: 12, overflowWrap: "anywhere" }}>{d.path}</code>
+              <button
+                className="btn btn-sm"
+                style={{ marginLeft: "auto" }}
+                disabled={busy}
+                onClick={() => void toggle(d.path, d.added)}
+              >
+                {d.added ? "Remove" : "Add"}
+              </button>
+            </div>
+          ))
+        )}
+        {msg && <p className="tg-msg">{msg}</p>}
+        <p className="tg-note">
+          No API access, no client ID, no app password — the folder is read from
+          disk like any other. Google Docs and Sheets are the exception: Drive
+          syncs those as small stubs rather than content, so they cannot be read
+          this way. Files kept as .docx, .xlsx or .pdf read fine.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Settings({
   settings,
 }: {
@@ -2558,6 +2659,7 @@ function Settings({
       </div>
       <div className="form">
         <ClaudeStatus />
+        <DriveFolderSettings />
         <TelegramSettings />
         <div className="field">
           <label>Knowledge root (browsed in the Knowledge tab)</label>

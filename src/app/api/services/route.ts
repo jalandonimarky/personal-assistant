@@ -138,7 +138,7 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
       return {
         ...base,
         state: "needs-setup" as State,
-        detail: "Add an OAuth client before signing in.",
+        detail: svc.clientConfig.prompt ?? "Add credentials before signing in.",
         canConfigure: true,
       };
     }

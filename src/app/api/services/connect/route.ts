@@ -174,6 +174,20 @@ export async function POST(req: Request) {
       dropLogin(String(body.id ?? ""));
       return NextResponse.json({ ok: true });
     }
+    if (body.action === "mcp-logout") {
+      // Clears the stored OAuth credentials without removing the connector, so
+      // Authorise can put it back. Removing it outright is deliberately NOT
+      // offered: the entry is synced from the account, so a local remove either
+      // comes back on the next sync or hides a connector the person still has
+      // switched on — turning it off belongs at claude.ai.
+      const r = await exec("claude", ["mcp", "logout", svc.mcpName], undefined, 60_000);
+      return r.ok
+        ? NextResponse.json({ ok: true, message: `Signed out of ${svc.label}.` })
+        : NextResponse.json(
+            { error: r.err || r.out || "Sign-out failed." },
+            { status: 500 },
+          );
+    }
     return NextResponse.json(
       {
         error:
@@ -233,6 +247,20 @@ export async function POST(req: Request) {
   if (body.action === "logout") {
     const r = await exec("node", [script, "--logout"], undefined, 30_000);
     return NextResponse.json({ ok: r.ok, message: r.out || r.err });
+  }
+
+  if (body.action === "remove") {
+    // Unregister the server from Claude Code. Credentials are cleared first —
+    // otherwise removing the entry orphans them, and re-registering later
+    // silently reuses a login the person believed they had thrown away.
+    await exec("node", [script, "--logout"], undefined, 30_000);
+    const r = await exec("claude", ["mcp", "remove", svc.mcpName], undefined, 60_000);
+    return r.ok
+      ? NextResponse.json({ ok: true, message: `${svc.label} disconnected.` })
+      : NextResponse.json(
+          { error: r.err || r.out || "Could not disconnect." },
+          { status: 500 },
+        );
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });

@@ -582,6 +582,18 @@ select.ingest-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px r
 .chips.sent .chip { background: transparent; }
 .file-err { margin: 8px 0 0; color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
 
+/* Connector management — deliberately quiet, these are not everyday actions. */
+.svc-manage { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.svc-manage a { color: var(--muted); font-size: 12px; text-decoration: none; }
+.svc-manage a:hover { color: var(--ink); text-decoration: underline; }
+.linkish {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font-size: 12px; color: var(--muted); font-family: inherit;
+}
+.linkish:hover:not(:disabled) { color: var(--ink); text-decoration: underline; }
+.linkish:disabled { opacity: .5; cursor: default; }
+.linkish.danger:hover:not(:disabled) { color: var(--danger); }
+
 /* Connections. A button beside Send opens a panel listing every app with its
    real state — the old tick-box looked identical whether or not anything was
    actually serving the tools behind it. */

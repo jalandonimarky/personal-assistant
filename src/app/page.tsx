@@ -25,6 +25,10 @@ interface ServiceStatus {
   canRegister?: boolean;
   /** Account connector present but unauthorised — `claude mcp login` fixes it. */
   canLogin?: boolean;
+  /** Registered with Claude Code — there is something to disconnect. */
+  registered?: boolean;
+  /** Holds a credential of its own, so signing out means something. */
+  canSignOut?: boolean;
   /** Where to switch the connector on, when it isn't on the account at all. */
   setupUrl?: string;
   grants: string[];
@@ -231,6 +235,8 @@ export default function Page() {
     url: string;
   } | null>(null);
   const [redirectVal, setRedirectVal] = useState("");
+  /** Two-step on Disconnect: it unregisters the server, not just this turn. */
+  const [confirmOff, setConfirmOff] = useState<string | null>(null);
 
   const startConnector = useCallback(
     async (id: string) => {
@@ -1197,6 +1203,79 @@ export default function Page() {
                             )
                           ) : null}
                         </div>
+
+                        {/*
+                          Management, mirroring `claude mcp` rather than hiding
+                          it: sign out clears credentials, disconnect
+                          unregisters the server entirely.
+                        */}
+                        {(c.state === "ready" || c.state === "needs-auth") && (
+                          <div className="svc-manage">
+                            {c.auth.kind === "account" ? (
+                              <>
+                                {c.state === "ready" && (
+                                  <button
+                                    className="linkish"
+                                    disabled={busy}
+                                    onClick={() => void svcAction(c.id, "mcp-logout")}
+                                  >
+                                    Sign out
+                                  </button>
+                                )}
+                                {c.auth.setupUrl && (
+                                  <a
+                                    href={c.auth.setupUrl}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                  >
+                                    Manage on claude.ai →
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {c.state === "ready" && c.canSignOut !== false && (
+                                  <button
+                                    className="linkish"
+                                    disabled={busy}
+                                    onClick={() => void svcAction(c.id, "logout")}
+                                  >
+                                    Sign out
+                                  </button>
+                                )}
+                                {c.registered &&
+                                  (confirmOff === c.id ? (
+                                    <>
+                                      <button
+                                        className="linkish danger"
+                                        disabled={busy}
+                                        onClick={() => {
+                                          setConfirmOff(null);
+                                          void svcAction(c.id, "remove");
+                                        }}
+                                      >
+                                        {busy ? "Disconnecting…" : "Confirm disconnect"}
+                                      </button>
+                                      <button
+                                        className="linkish"
+                                        onClick={() => setConfirmOff(null)}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      className="linkish danger"
+                                      disabled={busy}
+                                      onClick={() => setConfirmOff(c.id)}
+                                    >
+                                      Disconnect
+                                    </button>
+                                  ))}
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {connectorLogin?.svcId === c.id && (
                           <div className="svc-token">

@@ -66,6 +66,8 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
     writeGrants: svc.writeGrants,
     writeNote: svc.writeNote,
     hasWrite: hasWrite(svc),
+    /** Is this server registered with Claude Code? Gates Disconnect. */
+    registered: reg.has(svc.mcpName),
   };
 
   const known = reg.has(svc.mcpName);
@@ -147,6 +149,8 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
         ...base,
         state: "ready" as State,
         detail: s.account || s.login || s.user || "Signed in",
+        // "local" is what a server with no credential of its own reports.
+        canSignOut: s.account !== "local",
       };
     }
   } catch {

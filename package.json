@@ -9,7 +9,6 @@
     "pulse": "bash scripts/pulse.sh",
     "test:pulse": "node scripts/staleness.test.mjs",
     "test:store": "node scripts/store.test.mjs",
-    "test:imap": "node scripts/imap.test.mjs",
     "bot": "node bot/telegram.mjs"
   },
   "dependencies": {

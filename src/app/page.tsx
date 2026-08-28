@@ -1234,15 +1234,6 @@ export default function Page() {
                             >
                               Enable at claude.ai
                             </a>
-                          ) : c.state === "needs-auth" && c.clientConfig && !c.canLogin ? (
-                            <button
-                              className="btn btn-sm"
-                              onClick={() =>
-                                setConfigFor(configFor === c.id ? null : c.id)
-                              }
-                            >
-                              Update credentials
-                            </button>
                           ) : c.state === "needs-auth" && c.canLogin ? (
                             <button
                               className="btn btn-sm"

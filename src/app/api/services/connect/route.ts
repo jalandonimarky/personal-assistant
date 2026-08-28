@@ -210,8 +210,16 @@ export async function POST(req: Request) {
   if (body.action === "register") {
     const missing = (svc.requiredEnv ?? []).filter((k) => !process.env[k]);
     if (missing.length) {
+      // Name the doc: for Google this is a Cloud project and an OAuth client,
+      // which is not something to guess at from a variable name alone. Not
+      // derived from the script path — Gmail and Drive share one README.
+      const doc = svc.setupDoc;
       return NextResponse.json(
-        { error: `Set ${missing.join(" and ")} in the shell running this app, then restart it.` },
+        {
+          error:
+            `Set ${missing.join(" and ")} in the shell running this app, then restart it.` +
+            (doc ? ` Setup is in ${doc}.` : ""),
+        },
         { status: 400 },
       );
     }

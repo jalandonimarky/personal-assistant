@@ -593,6 +593,7 @@ select.ingest-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px r
 .linkish:hover:not(:disabled) { color: var(--ink); text-decoration: underline; }
 .linkish:disabled { opacity: .5; cursor: default; }
 .linkish.danger:hover:not(:disabled) { color: var(--danger); }
+.svc-authnote { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 
 /* Connections. A button beside Send opens a panel listing every app with its
    real state — the old tick-box looked identical whether or not anything was

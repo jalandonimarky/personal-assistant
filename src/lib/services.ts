@@ -73,6 +73,10 @@ export interface Service {
   writeGrants?: string[];
   /** Why no write level is offered, when there isn't one. */
   writeNote?: string;
+  /** What signing in actually asks the provider for. Shown before consent. */
+  authNote?: string;
+  /** Where the one-time setup is written down. Not derivable: Gmail and Drive share one. */
+  setupDoc?: string;
 }
 
 export const SERVICES: Service[] = [
@@ -80,24 +84,26 @@ export const SERVICES: Service[] = [
     id: "gmail",
     label: "Gmail",
     blurb: "Read and search your mail",
-    mcpName: "claude.ai Gmail",
-    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
+    mcpName: "gmail",
+    script: "mcp/gmail/src/index.mjs",
+    auth: { kind: "oauth" },
+    requiredEnv: ["GOOGLE_CLIENT_ID"],
+    setupDoc: "mcp/google/README.md",
     read: [
-      "mcp__claude_ai_Gmail__search_threads",
-      "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
-      "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__list_drafts",
+      "mcp__gmail__gmail_search",
+      "mcp__gmail__gmail_get_thread",
+      "mcp__gmail__gmail_get_message",
+      "mcp__gmail__gmail_list_labels",
+      "mcp__gmail__gmail_list_drafts",
     ],
     // Drafts and labels only. Both are reversible and both leave a human
     // between the model and the recipient. send/reply/forward/trash/spam are
     // deliberately absent: a sent mail cannot be recalled, and nothing here
     // would ask before sending it.
     write: [
-      "mcp__claude_ai_Gmail__create_draft",
-      "mcp__claude_ai_Gmail__update_draft",
-      "mcp__claude_ai_Gmail__label_message",
-      "mcp__claude_ai_Gmail__label_thread",
+      "mcp__gmail__gmail_create_draft",
+      "mcp__gmail__gmail_update_draft",
+      "mcp__gmail__gmail_modify_labels",
     ],
     grants: [
       "Search your mailbox and read the messages it finds",
@@ -113,30 +119,35 @@ export const SERVICES: Service[] = [
       "Send, reply to, or forward anything",
       "Trash messages or mark them as spam",
     ],
+    // Not merely unlisted: gmail.send is never requested at sign-in, so a send
+    // is un-grantable rather than just withheld.
+    authNote: "Signs in as you. Asks only for read, drafts and labels — never send.",
   },
   {
     id: "googledrive",
     label: "Google Drive",
     blurb: "Search and read your Drive files",
-    mcpName: "claude.ai Google Drive",
-    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
+    mcpName: "drive",
+    script: "mcp/drive/src/index.mjs",
+    auth: { kind: "oauth" },
+    requiredEnv: ["GOOGLE_CLIENT_ID"],
+    setupDoc: "mcp/google/README.md",
     // The API reads native Google Docs and Sheets as actual content. A synced
     // local folder cannot — Google-native files sync as .gdoc/.gsheet stubs
     // holding a document id, not the document.
     read: [
-      "mcp__claude_ai_Google_Drive__search_files",
-      "mcp__claude_ai_Google_Drive__read_file_content",
-      "mcp__claude_ai_Google_Drive__get_file_metadata",
-      "mcp__claude_ai_Google_Drive__list_recent_files",
-      "mcp__claude_ai_Google_Drive__download_file_content",
+      "mcp__drive__drive_search",
+      "mcp__drive__drive_read_file",
+      "mcp__drive__drive_get_metadata",
+      "mcp__drive__drive_list_recent",
     ],
     // Creating and editing are recoverable — Drive keeps version history and a
     // trash. Sharing and trashing are not offered: sharing changes who can see
     // your data and cannot be un-seen, and nothing here would ask first.
     write: [
-      "mcp__claude_ai_Google_Drive__create_file",
-      "mcp__claude_ai_Google_Drive__update_file",
-      "mcp__claude_ai_Google_Drive__copy_file",
+      "mcp__drive__drive_create_file",
+      "mcp__drive__drive_update_file",
+      "mcp__drive__drive_copy_file",
     ],
     grants: [
       "Search your Drive and read file contents, including native Docs and Sheets",
@@ -144,15 +155,18 @@ export const SERVICES: Service[] = [
       "Download a file to work from",
     ],
     writeGrants: [
-      "Create a new file or folder in Drive",
-      "Update the contents of an existing file",
+      "Create a new file in Drive",
+      "Update a file it created itself",
       "Copy a file",
     ],
     withheld: [
       "Share files or change who can access them",
       "Trash or permanently delete anything",
       "Change permissions on existing files",
+      "Overwrite a file it did not create",
     ],
+    authNote:
+      "Signs in as you. Reading covers your whole Drive; writing is scoped to files this assistant created.",
   },
   {
     id: "outlook",

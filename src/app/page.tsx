@@ -35,6 +35,8 @@ interface ServiceStatus {
   withheld: string[];
   writeGrants?: string[];
   writeNote?: string;
+  /** What signing in asks the provider for — shown before the person consents. */
+  authNote?: string;
   hasWrite?: boolean;
   auth:
     | { kind: "account"; setupUrl?: string }
@@ -1138,6 +1140,9 @@ export default function Page() {
                           </div>
                           <p className="svc-blurb">{c.blurb}</p>
                           <p className="svc-detail">{c.detail}</p>
+                          {c.authNote && c.state !== "ready" && (
+                            <p className="svc-authnote">{c.authNote}</p>
+                          )}
                         </div>
 
                         <div className="svc-act">

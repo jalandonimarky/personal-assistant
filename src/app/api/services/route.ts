@@ -65,6 +65,7 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
     withheld: svc.withheld,
     writeGrants: svc.writeGrants,
     writeNote: svc.writeNote,
+    authNote: svc.authNote,
     hasWrite: hasWrite(svc),
     /** Is this server registered with Claude Code? Gates Disconnect. */
     registered: reg.has(svc.mcpName),

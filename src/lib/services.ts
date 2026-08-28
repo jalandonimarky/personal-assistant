@@ -124,54 +124,11 @@ export const SERVICES: Service[] = [
     id: "gmail",
     label: "Gmail",
     blurb: "Read and search your mail",
-    mcpName: "claude.ai Gmail",
-    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
-    authNote:
-      "Comes from your Claude account — nothing to create, no client ID. Enable it once at claude.ai and it follows you to any machine you sign in on.",
-    read: [
-      "mcp__claude_ai_Gmail__search_threads",
-      "mcp__claude_ai_Gmail__get_thread",
-      "mcp__claude_ai_Gmail__get_message",
-      "mcp__claude_ai_Gmail__list_labels",
-      "mcp__claude_ai_Gmail__list_drafts",
-    ],
-    write: [
-      "mcp__claude_ai_Gmail__create_draft",
-      "mcp__claude_ai_Gmail__update_draft",
-      "mcp__claude_ai_Gmail__label_message",
-      "mcp__claude_ai_Gmail__label_thread",
-      // Creating and renaming a label are reversible and touch no mail.
-      // delete_label is not offered: it strips the label off every message
-      // that carries it, and nothing here would ask first.
-      "mcp__claude_ai_Gmail__create_label",
-      "mcp__claude_ai_Gmail__update_label",
-    ],
-    grants: [
-      "Search your mailbox and read the messages it finds",
-      "Read a specific thread or message in full",
-      "List your labels and existing drafts",
-    ],
-    writeGrants: [
-      "Draft a reply for you to review and send yourself",
-      "Edit a draft it created",
-      "Create and rename labels, and apply them to mail",
-    ],
-    withheld: [
-      "Send, reply to, or forward anything",
-      "Trash messages or mark them as spam",
-      "Delete a label",
-    ],
-  },
-  {
-    id: "gmail-own",
-    label: "Gmail (own Google client)",
-    blurb: "Read and search your mail, independent of your Claude account",
     mcpName: "gmail",
     script: "mcp/gmail/src/index.mjs",
     auth: { kind: "oauth" },
     setupDoc: "mcp/google/README.md",
     clientConfig: GOOGLE_CLIENT_CONFIG,
-    advanced: true,
     read: [
       "mcp__gmail__gmail_search",
       "mcp__gmail__gmail_get_thread",
@@ -213,48 +170,11 @@ export const SERVICES: Service[] = [
     id: "googledrive",
     label: "Google Drive",
     blurb: "Search and read your Drive files",
-    mcpName: "claude.ai Google Drive",
-    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
-    authNote:
-      "Comes from your Claude account — nothing to create, no client ID. Enable it once at claude.ai and it follows you to any machine you sign in on.",
-    read: [
-      "mcp__claude_ai_Google_Drive__search_files",
-      "mcp__claude_ai_Google_Drive__read_file_content",
-      "mcp__claude_ai_Google_Drive__get_file_metadata",
-      "mcp__claude_ai_Google_Drive__list_recent_files",
-      "mcp__claude_ai_Google_Drive__download_file_content",
-    ],
-    write: [
-      "mcp__claude_ai_Google_Drive__create_file",
-      "mcp__claude_ai_Google_Drive__update_file",
-      "mcp__claude_ai_Google_Drive__copy_file",
-    ],
-    grants: [
-      "Search your Drive and read file contents, including native Docs and Sheets",
-      "List recent files and read their metadata",
-      "Download a file to work from",
-    ],
-    writeGrants: [
-      "Create a new file or folder in Drive",
-      "Update the contents of an existing file",
-      "Copy a file",
-    ],
-    withheld: [
-      "Share files or change who can access them",
-      "Trash or permanently delete anything",
-      "Change permissions on existing files",
-    ],
-  },
-  {
-    id: "googledrive-own",
-    label: "Google Drive (own Google client)",
-    blurb: "Search and read your Drive files, independent of your Claude account",
     mcpName: "drive",
     script: "mcp/drive/src/index.mjs",
     auth: { kind: "oauth" },
     setupDoc: "mcp/google/README.md",
     clientConfig: GOOGLE_CLIENT_CONFIG,
-    advanced: true,
     // The API reads native Google Docs and Sheets as actual content. A synced
     // local folder cannot — Google-native files sync as .gdoc/.gsheet stubs
     // holding a document id, not the document.

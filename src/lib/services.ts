@@ -37,8 +37,14 @@ export interface Grant {
 }
 
 export type AuthKind =
-  /** Managed by Claude Code itself — nothing for us to set up or sign into. */
-  | { kind: "account" }
+  /**
+   * A claude.ai connector, synced down from the account rather than configured
+   * here. Two different failures hide behind that: the connector may not be
+   * enabled on the account at all (fix it on the web), or it may be enabled and
+   * simply not authorised on this machine (`claude mcp login` fixes that, and
+   * the app can drive it). Telling those apart is the whole point of `setupUrl`.
+   */
+  | { kind: "account"; setupUrl: string }
   /** Local tooling: needs registering with the CLI, but holds no credential. */
   | { kind: "none" }
   | { kind: "oauth" }
@@ -75,7 +81,7 @@ export const SERVICES: Service[] = [
     label: "Gmail",
     blurb: "Read and search your mail",
     mcpName: "claude.ai Gmail",
-    auth: { kind: "account" },
+    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
     read: [
       "mcp__claude_ai_Gmail__search_threads",
       "mcp__claude_ai_Gmail__get_thread",
@@ -113,7 +119,7 @@ export const SERVICES: Service[] = [
     label: "Google Drive",
     blurb: "Search and read your Drive files",
     mcpName: "claude.ai Google Drive",
-    auth: { kind: "account" },
+    auth: { kind: "account", setupUrl: "https://claude.ai/settings/connectors" },
     // The API reads native Google Docs and Sheets as actual content. A synced
     // local folder cannot — Google-native files sync as .gdoc/.gsheet stubs
     // holding a document id, not the document.

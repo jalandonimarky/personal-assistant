@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { getService } from "@/lib/services";
 
 export const dynamic = "force-dynamic";
@@ -53,13 +53,140 @@ function exec(
   });
 }
 
+/**
+ * Half-finished connector logins, keyed by id. Module-level state is safe here
+ * for the same reason as in api/auth: routes are bundled separately so this is
+ * not shared with others, but both halves of one login live in this file.
+ */
+const connectorLogins = new Map<
+  string,
+  { child: ChildProcessWithoutNullStreams; out: string; timer: NodeJS.Timeout }
+>();
+
+function dropLogin(id: string) {
+  const p = connectorLogins.get(id);
+  if (!p) return;
+  clearTimeout(p.timer);
+  p.child.kill("SIGTERM");
+  connectorLogins.delete(id);
+}
+
+async function startConnectorLogin(mcpName: string, label: string) {
+  const child = spawn("claude", ["mcp", "login", mcpName, "--no-browser"], {
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  const id = `${process.pid}-${Date.now()}`;
+  const entry = {
+    child,
+    out: "",
+    timer: setTimeout(() => dropLogin(id), 10 * 60 * 1000),
+  };
+  connectorLogins.set(id, entry);
+
+  const collect = (d: Buffer) => {
+    entry.out += d.toString();
+  };
+  child.stdout.on("data", collect);
+  child.stderr.on("data", collect);
+  child.on("error", () => dropLogin(id));
+
+  const url = await new Promise<string | null>((resolve) => {
+    const deadline = Date.now() + 25_000;
+    const tick = setInterval(() => {
+      const m = entry.out.match(/https:\/\/\S+/);
+      if (m) {
+        clearInterval(tick);
+        resolve(m[0].replace(/[.,)]+$/, ""));
+      } else if (child.exitCode !== null || Date.now() > deadline) {
+        clearInterval(tick);
+        resolve(null);
+      }
+    }, 150);
+  });
+
+  if (!url) {
+    const out = entry.out.trim();
+    dropLogin(id);
+    return NextResponse.json(
+      { error: out || `Could not start authorisation for ${label}.` },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true, id, url });
+}
+
+async function finishConnectorLogin(id: string, redirect: string) {
+  const entry = connectorLogins.get(id);
+  if (!entry) {
+    return NextResponse.json(
+      { error: "That authorisation is no longer open. Start again." },
+      { status: 410 },
+    );
+  }
+  if (!redirect) {
+    dropLogin(id);
+    return NextResponse.json({ error: "No redirect URL provided." }, { status: 400 });
+  }
+
+  const before = entry.out.length;
+  entry.child.stdin.write(`${redirect}\n`);
+
+  const code = await new Promise<number | null>((resolve) => {
+    const timer = setTimeout(() => resolve(null), 60_000);
+    entry.child.once("close", (c) => {
+      clearTimeout(timer);
+      resolve(c);
+    });
+  });
+
+  const tail = entry.out.slice(before).trim();
+  dropLogin(id);
+
+  return code === 0
+    ? NextResponse.json({ ok: true, message: "Authorised." })
+    : NextResponse.json(
+        { error: tail || "Authorisation failed. Copy the whole redirect URL and retry." },
+        { status: 400 },
+      );
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const svc = typeof body.id === "string" ? getService(body.id) : null;
   if (!svc) return NextResponse.json({ error: "Unknown service." }, { status: 400 });
-  if (!svc.script || svc.auth.kind === "account") {
+  /**
+   * Account connectors have no script of ours to run, but they are not
+   * un-fixable — `claude mcp login <name>` authorises one, and --no-browser
+   * makes it drivable from here exactly like `claude auth login`: it prints an
+   * authorization URL and then blocks reading the redirect URL back on stdin.
+   *
+   * This used to be a flat refusal, which is why Gmail and Drive looked
+   * impossible to configure on a machine that had never authorised them.
+   */
+  if (svc.auth.kind === "account") {
+    if (body.action === "start-connector-login") return startConnectorLogin(svc.mcpName, svc.label);
+    if (body.action === "finish-connector-login") {
+      return finishConnectorLogin(String(body.id ?? ""), String(body.redirect ?? ""));
+    }
+    if (body.action === "cancel-connector-login") {
+      dropLogin(String(body.id ?? ""));
+      return NextResponse.json({ ok: true });
+    }
     return NextResponse.json(
-      { error: `${svc.label} is managed by your Claude account — nothing to set up here.` },
+      {
+        error:
+          `${svc.label} comes from your Claude account. If it isn't listed, enable the ` +
+          `connector at claude.ai first; if it is listed, use Authorise.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!svc.script) {
+    return NextResponse.json(
+      { error: `${svc.label} has nothing to set up here.` },
       { status: 400 },
     );
   }

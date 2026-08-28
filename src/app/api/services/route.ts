@@ -71,14 +71,40 @@ async function probe(svc: Service, reg: Map<string, boolean>) {
   const known = reg.has(svc.mcpName);
   const healthy = reg.get(svc.mcpName) === true;
 
-  // Account connectors are managed by Claude Code, not by us.
+  /**
+   * Account connectors come down from claude.ai, but "not working" covers two
+   * different problems and the old message collapsed them into one dead end:
+   *
+   *   present in `claude mcp list` but unhealthy → enabled on the account,
+   *     just not authorised on THIS machine. `claude mcp login` fixes it, and
+   *     we can drive that (see api/services/connect).
+   *   absent entirely → not enabled on the account. Nothing local can fix it;
+   *     the person has to switch it on at claude.ai first.
+   *
+   * A new machine hits the second case, which is why setting these up appeared
+   * impossible from the app.
+   */
   if (svc.auth.kind === "account") {
+    if (healthy) {
+      return {
+        ...base,
+        state: "ready" as State,
+        detail: "Connected through your Claude account",
+      };
+    }
+    if (known) {
+      return {
+        ...base,
+        state: "needs-auth" as State,
+        detail: `Enabled on your Claude account, but not authorised on this machine yet.`,
+        canLogin: true,
+      };
+    }
     return {
       ...base,
-      state: (healthy ? "ready" : "unavailable") as State,
-      detail: healthy
-        ? "Connected through your Claude account"
-        : `Not connected. Add the ${svc.label} connector to your Claude account, then re-check.`,
+      state: "needs-setup" as State,
+      detail: `Not enabled on your Claude account. Turn the ${svc.label} connector on, then re-check.`,
+      setupUrl: svc.auth.setupUrl,
     };
   }
 

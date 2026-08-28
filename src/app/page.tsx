@@ -23,13 +23,17 @@ interface ServiceStatus {
   state: SvcState;
   detail: string;
   canRegister?: boolean;
+  /** Account connector present but unauthorised — `claude mcp login` fixes it. */
+  canLogin?: boolean;
+  /** Where to switch the connector on, when it isn't on the account at all. */
+  setupUrl?: string;
   grants: string[];
   withheld: string[];
   writeGrants?: string[];
   writeNote?: string;
   hasWrite?: boolean;
   auth:
-    | { kind: "account" }
+    | { kind: "account"; setupUrl?: string }
     | { kind: "oauth" }
     | { kind: "token"; url: string; help: string };
 }
@@ -221,6 +225,71 @@ export default function Page() {
     return () => document.removeEventListener("keydown", esc);
   }, [svcOpen]);
 
+  const [connectorLogin, setConnectorLogin] = useState<{
+    id: string;
+    svcId: string;
+    url: string;
+  } | null>(null);
+  const [redirectVal, setRedirectVal] = useState("");
+
+  const startConnector = useCallback(
+    async (id: string) => {
+      setSvcBusy(id);
+      setSvcMsg(null);
+      try {
+        const r = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, action: "start-connector-login" }),
+        });
+        const d = await r.json();
+        if (r.ok && d.url) {
+          setConnectorLogin({ id: d.id, svcId: id, url: d.url });
+          setRedirectVal("");
+          window.open(d.url, "_blank", "noopener");
+        } else {
+          setSvcMsg({ id, text: d.error ?? "Could not start authorisation.", bad: true });
+        }
+      } catch (e) {
+        setSvcMsg({ id, text: String(e), bad: true });
+      } finally {
+        setSvcBusy(null);
+      }
+    },
+    [],
+  );
+
+  const finishConnector = useCallback(
+    async (id: string) => {
+      if (!connectorLogin || !redirectVal.trim()) return;
+      setSvcBusy(id);
+      setSvcMsg(null);
+      try {
+        const r = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id,
+            action: "finish-connector-login",
+            redirect: redirectVal.trim(),
+          }),
+        });
+        const d = await r.json();
+        setSvcMsg({ id, text: d.error ?? d.message ?? "Done.", bad: !r.ok });
+        if (r.ok) {
+          setConnectorLogin(null);
+          setRedirectVal("");
+          await loadCatalog(true);
+        }
+      } catch (e) {
+        setSvcMsg({ id, text: String(e), bad: true });
+      } finally {
+        setSvcBusy(null);
+      }
+    },
+    [connectorLogin, redirectVal, loadCatalog],
+  );
+
   const svcAction = useCallback(
     async (id: string, action: string, token?: string) => {
       setSvcBusy(id);
@@ -316,6 +385,8 @@ export default function Page() {
     setSvcOpen(false);
     setFiles([]);
     setFileErr(null);
+    setConnectorLogin(null);
+    setRedirectVal("");
   }, [threadId, assistantId, tab]);
 
   const composer = useRef<HTMLTextAreaElement>(null);
@@ -1088,6 +1159,23 @@ export default function Page() {
                             >
                               {busy ? "Setting up…" : "Set up"}
                             </button>
+                          ) : c.state === "needs-setup" && c.setupUrl ? (
+                            <a
+                              className="btn btn-sm"
+                              href={c.setupUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                            >
+                              Enable at claude.ai
+                            </a>
+                          ) : c.state === "needs-auth" && c.canLogin ? (
+                            <button
+                              className="btn btn-sm"
+                              disabled={busy}
+                              onClick={() => void startConnector(c.id)}
+                            >
+                              {busy ? "Starting…" : "Authorise"}
+                            </button>
                           ) : c.state === "needs-auth" ? (
                             c.auth.kind === "token" ? (
                               <button
@@ -1109,6 +1197,38 @@ export default function Page() {
                             )
                           ) : null}
                         </div>
+
+                        {connectorLogin?.svcId === c.id && (
+                          <div className="svc-token">
+                            <p>
+                              A browser tab should have opened. Approve access,
+                              then paste the URL you land on back here — the whole
+                              thing, even if the page looks like an error.
+                            </p>
+                            <div className="svc-token-row">
+                              <input
+                                value={redirectVal}
+                                placeholder="Paste the redirect URL"
+                                autoFocus
+                                onChange={(e) => setRedirectVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && redirectVal.trim())
+                                    void finishConnector(c.id);
+                                }}
+                              />
+                              <button
+                                className="btn btn-sm btn-accent"
+                                disabled={busy || !redirectVal.trim()}
+                                onClick={() => void finishConnector(c.id)}
+                              >
+                                {busy ? "Checking…" : "Finish"}
+                              </button>
+                            </div>
+                            <a href={connectorLogin.url} target="_blank" rel="noreferrer noopener">
+                              Open the authorisation page →
+                            </a>
+                          </div>
+                        )}
 
                         {tokenFor === c.id && c.auth.kind === "token" && (
                           <div className="svc-token">

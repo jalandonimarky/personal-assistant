@@ -71,8 +71,11 @@
     <div><div class="l">Users</div><div class="v">Single user</div></div>
     <div><div class="l">Hosting</div><div class="v">Endpoint only</div></div>
     <div><div class="l">Date</div><div class="v">25 Aug 2026</div></div>
+    <div><div class="l">Updated</div><div class="v">28 Aug 2026 &middot; v1.1</div></div>
   </div>
 </div>
+
+<div class="call note"><b>What changed in v1.1 (28 Aug 2026).</b> The High network-binding finding in §4 has been remediated and re-verified; it is retained above, marked resolved, rather than removed. Every other finding stands as written on 25 Aug — in particular the two that are policy decisions rather than code: what data may be placed in scope, and the terms of the subscription in use.</div>
 
 <section>
   <h2>1 · What this tool is</h2>
@@ -135,11 +138,13 @@ local files:                             ~/.claude/projects/
   <h2>4 · Disclosed risks</h2>
   <p>Stated plainly, worst first. None of these are theoretical — each was verified in the running application.</p>
 
-  <h3><span class="sev hi">High</span> &nbsp;Listens on all network interfaces with no authentication</h3>
-  <p>The development server binds to every interface rather than loopback:</p>
+  <h3><span class="sev lo">Resolved 28 Aug 2026</span> &nbsp;Listens on all network interfaces with no authentication</h3>
+  <p><b>As reported 25 Aug.</b> The development server bound to every interface rather than loopback:</p>
   <pre><code>node  &lt;pid&gt;  TCP *:4317 (LISTEN)</code></pre>
   <p>Combined with the absence of any login, <b>anyone able to reach port 4317 on the same network can read every stored conversation and write files into the knowledge directories.</b> On a coffee-shop or hotel network, that is any other guest.</p>
-  <p><b>Remediation:</b> bind to loopback only — <code>next dev -H 127.0.0.1</code> — so the socket is unreachable from off-machine. This is a one-line change and should be treated as mandatory before any further use.</p>
+  <p><b>Remediation:</b> bind to loopback only — <code>next dev -H 127.0.0.1</code> — so the socket is unreachable from off-machine.</p>
+  <div class="call"><b>Applied 28 Aug 2026.</b> Both <code>dev</code> and <code>start</code> in <code>package.json</code> now pass <code>-H 127.0.0.1</code>, and the listening socket is bound to <code>127.0.0.1:4317</code> rather than <code>*:4317</code>. Verified by request: loopback answers, the same port on the machine&rsquo;s LAN address refuses the connection.
+  <p style="margin:8px 0 0"><b>One consequence worth knowing.</b> An IPv4-only socket plus <code>localhost</code> resolving to <code>::1</code> breaks non-browser clients — browsers fall back to IPv4, <code>curl</code> and <code>fetch</code> do not. <code>scripts/pulse.sh</code> and <code>bot/telegram.mjs</code> default to <code>http://127.0.0.1:4317</code> for that reason; override with <code>PULSE_BASE_URL</code> and <code>PA_BASE_URL</code>.</p></div>
 
   <h3><span class="sev hi">High</span> &nbsp;Corporate data may be transmitted to Anthropic</h3>
   <p>Whatever notes are stored in, or readable from, an assistant&rsquo;s scope can be read by the model and therefore sent to Anthropic as prompt content. This is the intended function of the tool, not a defect — but it is the substance of the compliance decision.</p>
@@ -205,7 +210,7 @@ local files:                             ~/.claude/projects/
 <section>
   <h2>7 · Recommended before continued use</h2>
   <ol>
-    <li><b>Bind to loopback.</b> <code>next dev -H 127.0.0.1</code>. Closes the High network finding outright.</li>
+    <li><b>Bind to loopback.</b> <code>next dev -H 127.0.0.1</code>. Closes the High network finding outright. <b>&mdash; Done 28 Aug 2026.</b></li>
     <li><b>Confirm the Claude subscription&rsquo;s terms cover company data</b> — corporate agreement versus personal plan. This determines whether §4&rsquo;s second finding is acceptable or blocking.</li>
     <li><b>Confirm FileVault is enabled</b> on the machine.</li>
     <li><b>Agree an explicit data-class boundary</b> — what may and may not be placed in an assistant&rsquo;s scope. A written line is easier to hold to than judgement in the moment.</li>

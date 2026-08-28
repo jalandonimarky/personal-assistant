@@ -20,7 +20,7 @@ const run = promisify(execFile);
 const API_BASE = "https://api.telegram.org/bot";
 // Downloads live on a different host path from the method endpoints.
 const FILE_BASE = "https://api.telegram.org/file/bot";
-const APP = process.env.PA_BASE_URL || "http://localhost:4317";
+const APP = process.env.PA_BASE_URL || "http://127.0.0.1:4317";
 
 // Telegram's hard cap per message.
 const MAX_CHARS = 4096;

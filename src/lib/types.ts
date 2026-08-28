@@ -15,6 +15,12 @@ export interface Assistant {
    */
   voice?: string;
   /**
+   * Voice for plain-text channels (Telegram). Falls back to `voice` when unset.
+   * Separate because register is channel-specific: what reads naturally in a
+   * browser can be wrong on a phone, and the language itself may differ.
+   */
+  voicePlain?: string;
+  /**
    * This assistant's own knowledge directory — browsed in the Knowledge tab and
    * the only place it may write. Falls back to settings.knowledgeRoot if unset.
    */

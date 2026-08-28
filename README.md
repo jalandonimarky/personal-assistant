@@ -13,6 +13,11 @@ npm install
 npm run dev        # → http://localhost:4317
 ```
 
+**It binds to loopback only.** `dev` and `start` both pass `-H 127.0.0.1`. There is
+no login of any kind, so the binding *is* the access control — without it the app
+serves every stored conversation, and accepts writes into the knowledge
+directories, to anyone who can reach port 4317. Don't remove it.
+
 **Requirements:** Node 18+, and [Claude Code](https://claude.com/claude-code)
 installed and authenticated (`claude` on your `PATH`). Nothing else — no database,
 no API key, no native dependencies.
@@ -237,7 +242,19 @@ npm run pulse            # sweep every assistant, skipping any with nothing quie
 npm run pulse -- --force # sweep even when everything is fresh
 ```
 
-`scripts/pulse.plist` is a launchd agent (macOS) that runs it daily at 08:00.
+`scripts/install-agents.sh` installs a launchd agent (macOS) that runs it daily at
+08:00 — along with one that keeps the app up and one for the Telegram relay:
+
+```bash
+bash scripts/install-agents.sh             # install / refresh
+bash scripts/install-agents.sh --status    # what's loaded
+bash scripts/install-agents.sh --uninstall # remove
+```
+
+Every path in the generated plists is derived from where the script itself sits,
+so moving the project and re-running it is the whole migration. launchd needs
+absolute paths, and a plist committed with them goes stale silently — a scheduled
+job that can't find its script never reports.
 Install instructions are in the file's comments — replace `__REPO__` with this
 repo's absolute path first. It needs the app running; if it isn't, the script
 says so and exits cleanly.
@@ -298,7 +315,7 @@ mcp/                Zero-dependency MCP servers
   vercel/           Projects, deployments, build logs
   outlook/          Microsoft Graph, per-user sign-in
 bot/telegram.mjs    Telegram relay
-scripts/            Pulse trigger, launchd agent, scanner tests
+scripts/            Pulse trigger, launchd installer, scanner tests
 docs/               Technical references, served at /docs/<slug>
 knowledge/          One directory per assistant. Gitignored.
 ```

@@ -1805,6 +1805,163 @@ function ClaudeStatus() {
   );
 }
 
+interface TelegramStatus {
+  configured: boolean;
+  invalid?: boolean;
+  bot?: string;
+  allowedIds?: string;
+  running?: boolean;
+  tokenTail?: string;
+  hint?: string;
+  error?: string;
+}
+
+/**
+ * Telegram configuration. The token is written straight to the Keychain and
+ * never read back — this panel can replace it but not reveal it.
+ */
+function TelegramSettings() {
+  const [st, setSt] = useState<TelegramStatus | null>(null);
+  const [token, setToken] = useState("");
+  const [ids, setIds] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/telegram", { cache: "no-store" });
+      const d = await r.json();
+      setSt(d);
+      setIds(d.allowedIds ?? "");
+    } catch {
+      setSt(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const save = useCallback(
+    async (payload: Record<string, unknown>) => {
+      setBusy(true);
+      setMsg(null);
+      try {
+        const r = await fetch("/api/telegram", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const d = await r.json();
+        setMsg({ text: d.error ?? d.message ?? "Saved.", bad: !r.ok });
+        if (r.ok) {
+          setToken("");
+          await load();
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [load],
+  );
+
+  return (
+    <div className="field">
+      <label>Telegram</label>
+      <div className="tg">
+        <div className="tg-row">
+          <span className={`dot ${st?.configured && !st.invalid ? "ok" : "off"}`} />
+          <b>
+            {!st
+              ? "Checking…"
+              : st.invalid
+                ? "Token rejected"
+                : st.configured
+                  ? st.bot
+                  : "Not configured"}
+          </b>
+          {st?.configured && (
+            <span className="tg-run">
+              {st.running ? "relay running" : "relay not running"}
+            </span>
+          )}
+        </div>
+
+        {!st?.configured && (
+          <p className="tg-hint">
+            {st?.hint ??
+              "Create a bot with @BotFather in Telegram, then paste the token it gives you."}
+          </p>
+        )}
+
+        <div className="tg-field">
+          <label>Bot token</label>
+          <div className="tg-input">
+            <input
+              type="password"
+              value={token}
+              placeholder={
+                st?.configured ? `stored, ending ${st.tokenTail}` : "123456:ABC-..."
+              }
+              onChange={(e) => setToken(e.target.value)}
+            />
+            <button
+              className="btn btn-sm"
+              disabled={busy || !token.trim()}
+              onClick={() => void save({ token: token.trim() })}
+            >
+              {busy ? "Checking…" : st?.configured ? "Replace" : "Save"}
+            </button>
+          </div>
+          <p className="tg-note">
+            Stored in your macOS Keychain, never in a file, and never shown again.
+          </p>
+        </div>
+
+        <div className="tg-field">
+          <label>Allowed Telegram user ids</label>
+          <div className="tg-input">
+            <input
+              value={ids}
+              placeholder="e.g. 123456789"
+              onChange={(e) => setIds(e.target.value)}
+            />
+            <button
+              className="btn btn-sm"
+              disabled={busy}
+              onClick={() => void save({ allowedIds: ids })}
+            >
+              Save
+            </button>
+          </div>
+          <p className="tg-note">
+            Anyone can message a bot, so only these ids are answered. Message the
+            bot once and its log prints the id that was refused. Comma-separate
+            several.
+          </p>
+        </div>
+
+        {msg && <p className={`tg-msg${msg.bad ? " bad" : ""}`}>{msg.text}</p>}
+
+        {st?.configured && (
+          <button
+            className="btn btn-sm btn-danger"
+            disabled={busy}
+            onClick={() => void save({ action: "clear" })}
+          >
+            Remove configuration
+          </button>
+        )}
+
+        <p className="tg-note">
+          Start the relay with <b>npm run bot</b>. Changes here take effect when
+          it next starts.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Settings({
   settings,
 }: {
@@ -1817,6 +1974,7 @@ function Settings({
       </div>
       <div className="form">
         <ClaudeStatus />
+        <TelegramSettings />
         <div className="field">
           <label>Knowledge root (browsed in the Knowledge tab)</label>
           <input readOnly value={settings.knowledgeRoot} />

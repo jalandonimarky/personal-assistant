@@ -15,6 +15,7 @@ export async function PATCH(
     if (typeof body.description === "string") a.description = body.description;
     if (typeof body.systemPrompt === "string") a.systemPrompt = body.systemPrompt;
     if (typeof body.voice === "string") a.voice = body.voice;
+    if (typeof body.voicePlain === "string") a.voicePlain = body.voicePlain;
   });
 
   return NextResponse.json({ ok: true });

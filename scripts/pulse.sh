@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-BASE="${PULSE_BASE_URL:-http://localhost:4317}"
+BASE="${PULSE_BASE_URL:-http://127.0.0.1:4317}"
 ONLY_IF_STALE=true
 NOTIFY="${PULSE_NOTIFY:-1}"
 
@@ -34,7 +34,7 @@ fi
 ASSISTANTS=$(curl -sf "$BASE/api/state" | python3 -c '
 import json, sys
 for a in json.load(sys.stdin)["assistants"]:
-    print(f"{a[\"id\"]}\t{a[\"name\"]}")
+    print(a["id"] + "\t" + a["name"])
 ')
 
 swept=0
@@ -51,12 +51,12 @@ import json, sys
 d = json.load(sys.stdin)
 counts = (d.get("scan") or {}).get("counts") or {}
 if d.get("error"):
-    print(f"ERROR\t{d[\"error\"][:200]}")
+    print("ERROR\t" + str(d["error"])[:200])
 elif d.get("skipped"):
-    print(f"SKIP\t{d[\"skipped\"]}")
+    print("SKIP\t" + str(d["skipped"]))
 else:
     quiet = counts.get("cold", 0) + counts.get("stale", 0) + counts.get("overdue", 0)
-    print(f"SWEPT\t{quiet} needing attention of {counts.get(\"open\", 0)} open")
+    print("SWEPT\t%d needing attention of %d open" % (quiet, counts.get("open", 0)))
 ')
 
   status=${summary%%$'\t'*}

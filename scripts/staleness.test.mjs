@@ -24,9 +24,9 @@ const FIXTURE = `# Sample
 
 - [ ] Send the vendor the field mapping @sam moved:2026-08-11 blocked:data export
 - [ ] Confirm the venue booking @alex moved:2026-07-02 due:2026-09-01
-- [ ] Decide Merit gift code scope owner: Alice Chen last-moved:2026-06-20 needs:product scope from Merit
-- [ ] Chase the HQ Rental webhook credentials moved:2026-08-13
-- [ ] No stamp at all on this one @cob
+- [ ] Decide gift code scope owner: Alice Chen last-moved:2026-06-20 needs:product scope from the partner
+- [ ] Chase the billing portal webhook credentials moved:2026-08-13
+- [ ] No stamp at all on this one @dana
 - [ ] Overdue and cold @sam moved:2026-05-01 due:2026-07-01
 - [x] Ship the process flow PDF @sam moved:2026-05-09
 
@@ -89,11 +89,11 @@ check("text stripped of metadata and handle", vendor.text, "Send the vendor the 
 check("moved: parsed", vendor.lastMoved, "2026-08-11");
 check("3 days quiet is fresh", [vendor.daysSince, vendor.bucket], [3, "fresh"]);
 
-const merit = byText("Merit gift code");
-check("owner: form with spaces", merit.owner, "Alice Chen");
-check("needs: aliases blocked", merit.blockedBy, "product scope from Merit");
-check("last-moved: aliases moved", merit.lastMoved, "2026-06-20");
-check("55 days quiet is cold", [merit.daysSince, merit.bucket], [55, "cold"]);
+const gift = byText("gift code");
+check("owner: form with spaces", gift.owner, "Alice Chen");
+check("needs: aliases blocked", gift.blockedBy, "product scope from the partner");
+check("last-moved: aliases moved", gift.lastMoved, "2026-06-20");
+check("55 days quiet is cold", [gift.daysSince, gift.bucket], [55, "cold"]);
 
 const venue = byText("venue");
 check("due: parsed, not yet overdue", [venue.due, venue.daysOverdue > 0], ["2026-09-01", false]);
@@ -102,9 +102,9 @@ check("overdue days computed", byText("Overdue and cold").daysOverdue, 44);
 
 const nostamp = byText("No stamp at all");
 check("missing moved: falls back to mtime, flagged inferred", nostamp.movedInferred, true);
-check("owner still found with no other metadata", nostamp.owner, "cob");
+check("owner still found with no other metadata", nostamp.owner, "dana");
 
-const noowner = byText("HQ Rental");
+const noowner = byText("billing portal");
 check("no owner is null", noowner.owner, null);
 check("moved: with no owner still parses", noowner.lastMoved, "2026-08-13");
 

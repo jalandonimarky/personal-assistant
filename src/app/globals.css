@@ -286,7 +286,13 @@ select.mode-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px rgb
 }
 
 /* ---------------- Misc ---------------- */
-.form { padding: 4px 22px 22px; max-width: 780px; }
+/* Scrolls in its own right. `.main` is overflow:hidden, so without this the
+   pane simply clips at the viewport with no way to reach what is below —
+   invisible while the form was short, wrong as soon as it grew. */
+.form {
+  padding: 4px 22px 26px; max-width: 780px;
+  overflow-y: auto; flex: 1; min-height: 0;
+}
 .field { margin-bottom: 16px; }
 .field label {
   display: block; font-size: 11px; font-weight: 700; letter-spacing: .07em;
@@ -681,3 +687,35 @@ select.ingest-select:focus { border-color: var(--focus); box-shadow: 0 0 0 3px r
 .svc-level .scope .cannot { color: var(--muted); }
 .svc-level .scope .cannot::before { content: "✕"; color: var(--danger); }
 .svc-hint { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* Telegram configuration. The token field is write-only by design — it can be
+   replaced from here but never read back, so this panel leaks nothing. */
+.tg {
+  padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--card);
+  font-size: 12.5px; line-height: 1.55;
+}
+.tg-row { display: flex; align-items: center; gap: 9px; }
+.tg-row b { font-size: 13px; color: var(--ink); }
+.tg-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.tg-row .dot.ok { background: var(--accent); }
+.tg-row .dot.off { background: var(--muted-2); }
+.tg-run { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+.tg-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.tg-field { margin-top: 13px; }
+.tg-field > label {
+  display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--muted-2); margin-bottom: 5px;
+}
+.tg-input { display: flex; gap: 7px; }
+.tg-input input {
+  flex: 1; padding: 6px 10px; font-size: 12.5px; font-family: var(--mono);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--card); outline: none; min-width: 0;
+}
+.tg-input input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px rgba(91,127,181,.18); }
+.tg-note { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.tg-msg { margin: 11px 0 0; font-size: 12px; color: var(--accent-ink); }
+.tg-msg.bad { color: var(--danger); }
+.tg .btn-danger { margin-top: 13px; }

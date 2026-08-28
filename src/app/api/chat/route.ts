@@ -62,7 +62,12 @@ export async function POST(req: Request) {
     const result = await runClaude({
       prompt: content,
       systemPrompt: assistant.systemPrompt || assistant.description,
-      voice: assistant.voice,
+      // Register is channel-specific, so the plain-text voice wins on Telegram
+      // when one is set. The persona in systemPrompt is unchanged either way.
+      voice:
+        body.channel === "plain"
+          ? (assistant.voicePlain ?? assistant.voice)
+          : assistant.voice,
       mode,
       sessionId: thread.sessionId,
       newSessionId,

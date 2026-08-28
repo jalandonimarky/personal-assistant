@@ -142,4 +142,22 @@ and sign in again.
 **Signed out after a week** — the consent screen is in *Testing*. Publish it, or
 switch to Internal.
 
-**"Access blocked: app not verified"** — add yourself as a test user, or publish.
+**"Error 403: access_denied"**, or *"has not completed the Google verification
+process… can only be accessed by developer-approved testers"* — the consent
+screen is **External** and in **Testing**, so only listed testers may sign in.
+Add yourself: *APIs & Services → OAuth consent screen* (newer console: *Google
+Auth Platform → Audience*) → **Test users** → **+ Add users** → your address →
+Save, then retry.
+
+Reaching this error is a good sign: the client id, secret and redirect URI all
+worked, or you would not have got as far as Google's consent screen.
+
+**The Testing-mode tax.** Testers can sign in, but their **refresh tokens
+expire after 7 days**, so you get signed out weekly. Two ways out:
+
+- **Internal** — if the account belongs to a Google Workspace organisation,
+  switch the consent screen to Internal. No testers to list, no 7-day expiry.
+  This is the right answer whenever it is available.
+- **Publish** — External + published removes the expiry, but Gmail's read
+  scopes are in Google's *restricted* tier, so publishing means a verification
+  review. Not worth it for a personal tool.

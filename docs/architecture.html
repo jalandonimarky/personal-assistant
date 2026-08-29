@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Personal Assistant — Architecture &amp; Install Guide</title>
+<style>
+  @page { size: Letter; margin: 15mm 15mm 16mm 15mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:0; font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+         font-size:9.6pt; line-height:1.55; color:#46413a;
+         -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  @media screen { body { max-width:830px; margin:34px auto; padding:0 24px 60px; } }
+  html { overflow-x:hidden; }
+
+  .head { background:#efece2; border:1px solid #e3ddcd; border-radius:12px;
+          padding:24px 26px; margin-bottom:14px; }
+  .head .kicker { font-size:8pt; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:#7c7566; }
+  .head h1 { font-family:Georgia,serif; font-size:26pt; margin:9px 0 0; color:#1f1d19; letter-spacing:-.01em; }
+  .head .sub { margin-top:8px; font-size:11pt; color:#46413a; }
+  .meta { margin-top:18px; padding-top:14px; border-top:1px solid #d5cdb9; display:flex; gap:34px; flex-wrap:wrap; }
+  .meta .l { font-size:7pt; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#9a9284; }
+  .meta .v { font-size:9.5pt; font-weight:650; color:#1f1d19; margin-top:2px; }
+
+  h2 { font-size:8.5pt; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
+       color:#7c7566; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid #e3ddcd; }
+  h3 { font-family:Georgia,serif; font-size:12.5pt; color:#1f1d19; margin:16px 0 6px; }
+  p { margin:0 0 9px; }
+  section { break-inside:avoid; }
+  ul, ol { margin:0 0 9px; padding-left:18px; }
+  li { margin-bottom:4px; }
+  b, strong { color:#1f1d19; }
+
+  table { width:100%; max-width:100%; border-collapse:collapse; margin:6px 0 11px; }
+  th { font-size:7.3pt; font-weight:700; letter-spacing:1.1px; text-transform:uppercase;
+       color:#7c7566; text-align:left; padding:7px 9px; background:#f4f1e8; border-bottom:1.5px solid #d5cdb9; }
+  td { padding:7px 9px; border-bottom:1px solid #eee9dd; vertical-align:top; font-size:9.3pt; }
+  tbody tr:nth-child(even) td { background:#fbf9f4; }
+  td.k { font-weight:650; color:#1f1d19; width:27%; }
+
+  code { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:8.5pt; background:#f2efe6;
+         padding:1px 5px; border-radius:4px; color:#3f5137; overflow-wrap:anywhere; }
+  pre { background:#f7f5ee; border:1px solid #e3ddcd; border-radius:8px; padding:11px 13px;
+        margin:6px 0 11px; overflow-x:auto; white-space:pre; }
+  pre code { background:none; padding:0; font-size:8.6pt; color:#46413a; }
+
+  .call { border-left:3px solid #6f8264; background:#eef2eb; padding:11px 14px;
+          border-radius:0 8px 8px 0; margin:11px 0; font-size:9.3pt; color:#3f5137; }
+  .call.warn { border-left-color:#b0625a; background:#f7ebe9; color:#7a3f39; }
+  .call.note { border-left-color:#9a9284; background:#f4f1e8; color:#5c554a; }
+  .call b { color:inherit; }
+
+  .sev { display:inline-block; padding:2px 9px; border-radius:20px; font-size:7.5pt;
+         font-weight:700; letter-spacing:.7px; text-transform:uppercase; white-space:nowrap; }
+  .sev.hi { background:#f2dbd8; color:#8c463e; }
+  .sev.md { background:#f6ecd8; color:#8a6a2f; }
+  .sev.lo { background:#e6ece0; color:#3f5137; }
+
+  footer { margin-top:26px; padding-top:11px; border-top:1px solid #e3ddcd;
+           font-size:7.8pt; color:#9a9284; line-height:1.6; }
+  .pb { break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="kicker">Architecture &amp; Install Guide</div>
+  <h1>Personal Assistant</h1>
+  <div class="sub">How the pieces fit, and what will go wrong when someone else installs it. Written from a working installation, not from intent.</div>
+  <div class="meta">
+    <div><div class="l">Audience</div><div class="v">Anyone installing this on a second machine</div></div>
+    <div><div class="l">Date</div><div class="v">29 Aug 2026</div></div>
+    <div><div class="l">Platform</div><div class="v">macOS only</div></div>
+    <div><div class="l">Users</div><div class="v">1 per installation</div></div>
+  </div>
+</div>
+
+<div class="call note"><b>Read §6 before installing.</b> Every failure listed there is one that actually
+happened during setup, not one imagined for completeness. Most of a first install is spent on four of
+them.</div>
+
+<section>
+  <h2>1 · What this is</h2>
+  <p>A local web interface for the <b>Claude Code CLI</b>. It runs on one laptop, is reachable only from
+  that machine, and stores everything in plain files on it. There is no server, no database and no cloud
+  component of its own.</p>
+  <p>The central design decision is that it <b>owns no model and no conversation state</b>. Every turn
+  shells out to <code>claude -p</code>, which inherits the authentication Claude Code already has and
+  keeps the conversation in its own session storage. The app never resends history — it passes
+  <code>--resume</code> and the CLI handles context, compaction and token budgeting for free.</p>
+  <div class="call warn"><b>Consequence worth stating first.</b> Without Claude Code installed and signed
+  in, none of this works — not degraded, not read-only, but not at all. Google, Telegram and documents are
+  all downstream of that one dependency.</div>
+</section>
+
+<section>
+  <h2>2 · The shape</h2>
+<pre><code>  Browser ── http ──▶ Next.js app          (127.0.0.1:4317, loopback only)
+   (you)              │
+                      │ spawn, per turn
+                      ▼
+                  claude -p ──── TLS ────▶ Anthropic
+                      │
+                      │ --allowedTools, --add-dir
+                      ▼
+       ┌──────────────┴───────────────┐
+       │                              │
+   MCP servers                    the filesystem
+   (stdio, local)                 knowledge/ · inbox · outbox
+       │
+       ├── documents   xlsx/pptx/docx        → local python + LibreOffice
+       ├── gmail       read, drafts, labels  → Google API
+       ├── drive       read, create          → Google API
+       ├── github      repos, issues         → GitHub API
+       └── outlook     read mail             → Microsoft Graph</code></pre>
+  <p>Two things flow outward, and only two: prompt content to Anthropic via the CLI, and API calls from
+  whichever MCP servers you have signed in. The app itself makes no external requests — every
+  <code>fetch()</code> in the Next code is a same-origin relative path.</p>
+</section>
+
+<section>
+  <h2>3 · Why MCP for tools that never leave the machine</h2>
+  <p>A reasonable objection: the <code>documents</code> server builds spreadsheets in your Documents
+  folder and touches no network — so why wrap it in a protocol at all?</p>
+  <p>Because <b>MCP is not about remoteness. It is the only mechanism by which a model gets a tool.</b>
+  If a capability is not exposed as an MCP server, the model cannot call it. Local or not is irrelevant to
+  that.</p>
+  <p>The alternative is <b>giving the model Bash</b> and letting it run Python itself. That is worse in
+  every direction: it grants arbitrary command execution rather than five named functions with typed
+  arguments, it cannot be scoped to an output directory, and it cannot be granted per turn. A tool surface
+  of <code>doc_create_spreadsheet(filename, sheets)</code> is something you can reason about. A shell is
+  not.</p>
+  <div class="call">So <code>mcp/documents</code> means "a local capability with a defined, inspectable
+  surface" — the opposite of an internet connection.</div>
+</section>
+
+<section class="pb">
+  <h2>4 · What runs, and when</h2>
+  <table>
+    <thead><tr><th>Process</th><th>Lifetime</th><th>Started by</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Next.js app</td><td>Always, port 4317, loopback</td><td>launchd agent (KeepAlive)</td></tr>
+      <tr><td class="k">Telegram relay</td><td>Always, long-polling outbound</td><td>launchd agent (KeepAlive)</td></tr>
+      <tr><td class="k">Pulse sweep</td><td>Once daily, 08:00</td><td>launchd agent (calendar)</td></tr>
+      <tr><td class="k"><code>claude -p</code></td><td>One per turn, minutes</td><td>the chat route</td></tr>
+      <tr><td class="k">MCP servers</td><td>One per turn, by the CLI</td><td><code>claude</code>, over stdio</td></tr>
+      <tr><td class="k">OAuth listener</td><td>~5 min during a sign-in</td><td>the sign-in flow, on 53683/53684</td></tr>
+    </tbody>
+  </table>
+  <p>All three launchd agents are generated by <code>scripts/install-agents.sh</code>, which derives every
+  absolute path from its own location. Moving the project and re-running that script is the entire
+  migration.</p>
+  <div class="call note"><b>KeepAlive has a consequence:</b> <code>kill</code> on the app or relay just
+  gets it restarted. Use <code>install-agents.sh --uninstall</code>, or <code>launchctl unload</code>.</div>
+</section>
+
+<section>
+  <h2>5 · Where data lives</h2>
+  <table>
+    <thead><tr><th>What</th><th>Where</th><th>In git?</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Assistants, threads, messages</td><td><code>data/store.json</code></td><td>No — gitignored</td></tr>
+      <tr><td class="k">Conversation transcripts</td><td><code>~/.claude/projects/</code> (Claude Code's)</td><td>No</td></tr>
+      <tr><td class="k">Knowledge notes</td><td><code>knowledge/&lt;assistant&gt;/</code></td><td>No — gitignored</td></tr>
+      <tr><td class="k">Attachments you upload</td><td>temp inbox, scratch</td><td>No</td></tr>
+      <tr><td class="k">Documents it produces</td><td><code>~/Documents/Personal Assistant/</code></td><td>No</td></tr>
+      <tr><td class="k">Every credential</td><td>macOS Keychain</td><td>No — never on disk in the repo</td></tr>
+    </tbody>
+  </table>
+  <p>Tokens are never written to <code>store.json</code>, never committed, and never passed on argv —
+  argv is visible in the process list. The app holds no credential of its own: Anthropic auth belongs to
+  Claude Code, and each MCP server holds its own refresh token.</p>
+  <div class="call warn"><b>store.json is the single point of loss.</b> It is the only copy of your
+  threads and questions. Writes are atomic and locked, but nothing backs it up — that is yours to arrange.</div>
+</section>
+
+<section>
+  <h2>6 · Installing it elsewhere, and what will break</h2>
+  <p>Prerequisites: <b>macOS</b>, <b>Node 18+</b>, and <b>Claude Code</b> installed and on <code>PATH</code>.
+  Then <code>npm install</code>, <code>npm run dev</code>, and open Settings.</p>
+  <p>The failures below are ordered by how likely they are to be the thing that stops you.</p>
+
+  <table>
+    <thead><tr><th>What you see</th><th>Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="sev hi">Blocks all</span> Turns fail immediately; Settings shows "Not installed"</td>
+        <td>Claude Code missing or not on <code>PATH</code></td>
+        <td><code>npm i -g @anthropic-ai/claude-code</code>. There is no fallback — the app is a front end for it.</td>
+      </tr>
+      <tr>
+        <td><span class="sev hi">Blocks all</span> "Not signed in"</td>
+        <td>Claude Code installed but unauthenticated</td>
+        <td>Settings → <b>Sign in to Claude</b>. Browser opens, paste the code back. No terminal needed.</td>
+      </tr>
+      <tr>
+        <td><span class="sev hi">Blocks all</span> Nothing works, any OS but macOS</td>
+        <td>Keychain (<code>security</code>), <code>open</code>, <code>lsof</code> and launchd are all macOS-only</td>
+        <td>None. Credential storage, browser launch, port recovery and scheduling would each need a port. See §7.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Silent</span> "No such tool available" for a service you just set up</td>
+        <td><code>claude mcp add</code> defaults to <b>local scope</b>, binding the server to the directory it ran in — but turns run from a neutral working directory</td>
+        <td>Register with <code>--scope user</code>. The panel now does. <code>claude mcp list</code> will report it Connected either way, which is what makes this one hard to spot.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Confusing</span> Model calls a tool it was not granted, then reports "no access"</td>
+        <td><code>--allowedTools</code> <b>pre-approves; it does not hide.</b> A same-purpose account connector stays visible and gets picked</td>
+        <td>Already mitigated — the system prompt names the granted tools. Removing duplicate connectors also helps.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Google</span> Bare <code>400 … malformed</code>, no parameter named</td>
+        <td>OAuth client is a <b>Web application</b> type. The loopback redirect is permitted for <b>Desktop app</b> only</td>
+        <td>Create a Desktop app client. Nothing to fix on the existing one.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Google</span> <code>403 … API has not been used in project</code></td>
+        <td>Gmail API / Drive API not enabled. Separate from consent-screen scopes</td>
+        <td>APIs &amp; Services → Library → enable both. Scopes say what you may ask for; the API must exist to answer.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Google</span> <code>403 access_denied</code>, "developer-approved testers"</td>
+        <td>Consent screen is External and in Testing</td>
+        <td>Add yourself as a test user. Reaching this error proves client, secret and redirect are all correct.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Google</span> Signed out every week</td>
+        <td>Testing-mode refresh tokens expire after <b>7 days</b></td>
+        <td>Switch the consent screen to <b>Internal</b> (needs a Workspace org). Publishing externally triggers verification, because Gmail read scopes are restricted.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Sign-in</span> "State mismatch", or a card stuck on "Waiting for browser…"</td>
+        <td>An abandoned sign-in holds its loopback port for 5 minutes; the redirect reaches the old listener</td>
+        <td>Press Sign in again — it clears the previous attempt — or <b>Cancel and start over</b>.</td>
+      </tr>
+      <tr>
+        <td><span class="sev md">Documents</span> <code>ModuleNotFoundError: No module named 'openpyxl'</code></td>
+        <td>The <code>python3</code> first on <code>PATH</code> is a Homebrew or pyenv one without the libraries</td>
+        <td>Mitigated — the server probes interpreters. If none qualify: <code>python3 -m pip install openpyxl python-pptx</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="sev lo">Partial</span> <code>.docx</code>/<code>.rtf</code> attachments "could not be converted"</td>
+        <td>LibreOffice absent. <code>.xlsx</code> and <code>.pptx</code> do not need it</td>
+        <td><code>brew install --cask libreoffice</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="sev lo">Startup</span> Port 4317 already in use</td>
+        <td>Another copy running, or a stale <code>npm run dev</code> wrapper</td>
+        <td><code>lsof -tnP -iTCP:4317 -sTCP:LISTEN | xargs kill</code>. Note KeepAlive watches the npm wrapper, so use <code>launchctl kickstart -k</code> to restart cleanly.</td>
+      </tr>
+      <tr>
+        <td><span class="sev lo">Billing</span> Turn costs become real</td>
+        <td><code>ANTHROPIC_API_KEY</code> exported in the shell that started the server</td>
+        <td>Unset it and restart. Settings flags this when it detects it.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>7 · Portability, stated plainly</h2>
+  <p>This is a <b>macOS application</b> that happens to be written in TypeScript. Four dependencies are
+  not incidental:</p>
+  <table>
+    <thead><tr><th>Dependency</th><th>Used for</th><th>What a port would need</th></tr></thead>
+    <tbody>
+      <tr><td class="k"><code>security</code></td><td>Every credential, in the Keychain</td><td>libsecret on Linux, DPAPI on Windows</td></tr>
+      <tr><td class="k"><code>open</code></td><td>Launching the browser, revealing files</td><td><code>xdg-open</code> / <code>start</code></td></tr>
+      <tr><td class="k">launchd</td><td>App, relay and daily sweep</td><td>systemd units / Task Scheduler</td></tr>
+      <tr><td class="k"><code>lsof</code></td><td>Recovering a held OAuth port</td><td><code>ss</code>, or netstat parsing</td></tr>
+    </tbody>
+  </table>
+  <p>None is hard individually. Together they are a real port, not a config flag — worth knowing before
+  promising the tool to someone on Windows.</p>
+</section>
+
+<section>
+  <h2>8 · The security shape, in one paragraph</h2>
+  <p>The app binds to <b>loopback only</b> and has <b>no login</b> — the binding is the access control, so
+  do not remove <code>-H 127.0.0.1</code>. Read-only modes cannot write: the tool list is enforced by the
+  CLI, not by instruction. Service access is granted <b>per turn</b> and revoked on navigation. Irreversible
+  and outward-facing actions are absent at every level — no send, no delete, no share — and for Gmail that
+  is structural rather than a setting, because <code>gmail.send</code> is never requested at sign-in, so no
+  token can perform it. Everything at rest depends on <b>FileVault</b>, which should be on.</p>
+</section>
+
+<footer>
+  Personal Assistant · Architecture &amp; install guide · 29 August 2026<br />
+  <code>docs/architecture.html</code> · Failure modes observed during a real installation, not enumerated in advance.
+</footer>
+
+</body>
+</html>

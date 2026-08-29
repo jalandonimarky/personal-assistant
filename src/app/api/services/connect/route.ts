@@ -60,8 +60,58 @@ function exec(
  */
 const connectorLogins = new Map<
   string,
-  { child: ChildProcessWithoutNullStreams; out: string; timer: NodeJS.Timeout }
+  {
+    child: ChildProcessWithoutNullStreams;
+    out: string;
+    timer: NodeJS.Timeout;
+    svcId: string;
+  }
 >();
+
+/**
+ * Abandon any half-finished sign-in for a service before starting another.
+ *
+ * A previous attempt keeps its loopback listener for five minutes. Left alone
+ * it holds the port, so the next attempt cannot listen — and then the OLD
+ * process receives the redirect and rejects it as a state mismatch. Clearing
+ * first turns "it just says waiting forever" into something a second click
+ * fixes.
+ */
+function dropLoginsFor(svcId: string) {
+  for (const [id, entry] of connectorLogins) {
+    if (entry.svcId === svcId) dropLogin(id);
+  }
+}
+
+/**
+ * Free the loopback callback port, whatever is holding it.
+ *
+ * The in-memory map above is not enough: Next reloads route modules in dev, so
+ * a pending login started before a reload is invisible to the map while its
+ * process happily keeps the port. That is the failure people actually hit —
+ * every later attempt silently fails to listen, the browser redirect reaches
+ * the OLD listener, and it is rejected as a state mismatch.
+ *
+ * Only ever kills a process whose command line is this service's own script,
+ * so nothing else on that port is touched.
+ */
+async function freeCallbackPort(port: number, script: string) {
+  const found = await exec("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], undefined, 10_000);
+  const pids = found.out.split("\n").map((x) => x.trim()).filter(Boolean);
+
+  for (const pid of pids) {
+    const ps = await exec("ps", ["-o", "command=", "-p", pid], undefined, 10_000);
+    if (ps.out.includes(script)) await exec("kill", [pid], undefined, 10_000);
+  }
+
+  // Give the socket a moment to actually close before the next listen().
+  for (let i = 0; i < 20; i++) {
+    const still = await exec("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], undefined, 5_000);
+    if (!still.out.trim()) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
 
 function dropLogin(id: string) {
   const p = connectorLogins.get(id);
@@ -71,7 +121,8 @@ function dropLogin(id: string) {
   connectorLogins.delete(id);
 }
 
-async function startConnectorLogin(mcpName: string, label: string) {
+async function startConnectorLogin(mcpName: string, label: string, svcId = mcpName) {
+  dropLoginsFor(svcId);
   const child = spawn("claude", ["mcp", "login", mcpName, "--no-browser"], {
     env,
     stdio: ["pipe", "pipe", "pipe"],
@@ -82,6 +133,7 @@ async function startConnectorLogin(mcpName: string, label: string) {
     child,
     out: "",
     timer: setTimeout(() => dropLogin(id), 10 * 60 * 1000),
+    svcId,
   };
   connectorLogins.set(id, entry);
 
@@ -185,7 +237,8 @@ export async function POST(req: Request) {
    * impossible to configure on a machine that had never authorised them.
    */
   if (svc.auth.kind === "account") {
-    if (body.action === "start-connector-login") return startConnectorLogin(svc.mcpName, svc.label);
+    if (body.action === "start-connector-login")
+      return startConnectorLogin(svc.mcpName, svc.label, svc.id);
     if (body.action === "finish-connector-login") {
       return finishConnectorLogin(String(body.id ?? ""), String(body.redirect ?? ""));
     }
@@ -298,6 +351,20 @@ export async function POST(req: Request) {
    * stale tab. The loopback listener does not care which browser arrives.
    */
   if (body.action === "start-oauth-login") {
+    dropLoginsFor(svc.id);
+    if (svc.callbackPort) {
+      const freed = await freeCallbackPort(svc.callbackPort, script);
+      if (!freed) {
+        return NextResponse.json(
+          {
+            error:
+              `Port ${svc.callbackPort} is still held by an earlier sign-in. ` +
+              `Wait a few seconds and press Sign in again.`,
+          },
+          { status: 409 },
+        );
+      }
+    }
     const child = spawn("node", [script, "--login", "--no-browser"], {
       env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -307,6 +374,7 @@ export async function POST(req: Request) {
       child,
       out: "",
       timer: setTimeout(() => dropLogin(id), 10 * 60 * 1000),
+      svcId: svc.id,
     };
     connectorLogins.set(id, entry);
     const collect = (d: Buffer) => {
@@ -339,6 +407,12 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json({ ok: true, id, url });
+  }
+
+  if (body.action === "cancel-oauth-login") {
+    dropLoginsFor(svc.id);
+    if (svc.callbackPort) await freeCallbackPort(svc.callbackPort, script);
+    return NextResponse.json({ ok: true, message: "Sign-in cancelled." });
   }
 
   /** Wait for the loopback redirect to complete the sign-in the page opened. */

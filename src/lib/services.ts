@@ -78,6 +78,13 @@ export interface Service {
   /** Where the one-time setup is written down. Not derivable: Gmail and Drive share one. */
   setupDoc?: string;
   /**
+   * Loopback port this service's sign-in listens on. The route needs it to
+   * clear a previous attempt that is still holding it — which cannot be done
+   * from in-memory state, because Next reloads route modules and the map goes
+   * with them.
+   */
+  callbackPort?: number;
+  /**
    * A provider-level credential that must exist before anyone can sign in —
    * Google's OAuth client, for instance. Kept in the Keychain and entered in
    * the panel rather than read from the environment: this app usually runs as
@@ -128,6 +135,7 @@ export const SERVICES: Service[] = [
     script: "mcp/gmail/src/index.mjs",
     auth: { kind: "oauth" },
     setupDoc: "mcp/google/README.md",
+    callbackPort: 53683,
     clientConfig: GOOGLE_CLIENT_CONFIG,
     read: [
       "mcp__gmail__gmail_search",
@@ -174,6 +182,7 @@ export const SERVICES: Service[] = [
     script: "mcp/drive/src/index.mjs",
     auth: { kind: "oauth" },
     setupDoc: "mcp/google/README.md",
+    callbackPort: 53684,
     clientConfig: GOOGLE_CLIENT_CONFIG,
     // The API reads native Google Docs and Sheets as actual content. A synced
     // local folder cannot — Google-native files sync as .gdoc/.gsheet stubs

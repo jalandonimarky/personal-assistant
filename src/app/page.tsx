@@ -252,6 +252,8 @@ export default function Page() {
   const [configFor, setConfigFor] = useState<string | null>(null);
   /** Fallback when the browser blocks the sign-in popup. */
   const [signInUrl, setSignInUrl] = useState<{ id: string; url: string } | null>(null);
+  /** Which service is mid-sign-in — a waiting card must offer a way out. */
+  const [pendingSignIn, setPendingSignIn] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
@@ -370,6 +372,7 @@ export default function Page() {
           setSvcMsg({ id, text: s1.error ?? "Could not start sign-in.", bad: true });
           return;
         }
+        setPendingSignIn(id);
         if (tab) {
           tab.location.href = s1.url;
           setSvcMsg({ id, text: "Approve in the tab that just opened…" });
@@ -388,9 +391,11 @@ export default function Page() {
         const s2 = await done.json();
         setSvcMsg({ id, text: s2.error ?? s2.message ?? "Done.", bad: !done.ok });
         setSignInUrl(null);
+        setPendingSignIn(null);
         if (done.ok) await loadCatalog(true);
       } catch (e) {
         tab?.close();
+        setPendingSignIn(null);
         setSvcMsg({ id, text: String(e), bad: true });
       } finally {
         setSvcBusy(null);
@@ -398,6 +403,19 @@ export default function Page() {
     },
     [loadCatalog],
   );
+
+  /** Abandon a sign-in that is going nowhere, and free its port. */
+  const cancelSignIn = useCallback(async (id: string) => {
+    setPendingSignIn(null);
+    setSignInUrl(null);
+    setSvcBusy(null);
+    setSvcMsg({ id, text: "Cancelled. Press Sign in to start again." });
+    await fetch("/api/services/connect", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, action: "cancel-oauth-login" }),
+    }).catch(() => {});
+  }, []);
 
   const svcAction = useCallback(
     async (id: string, action: string, token?: string) => {
@@ -1402,6 +1420,14 @@ export default function Page() {
                                   ))}
                               </>
                             )}
+                          </div>
+                        )}
+
+                        {pendingSignIn === c.id && (
+                          <div className="svc-manage">
+                            <button className="linkish" onClick={() => void cancelSignIn(c.id)}>
+                              Cancel and start over
+                            </button>
                           </div>
                         )}
 

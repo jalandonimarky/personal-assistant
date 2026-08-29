@@ -2364,13 +2364,25 @@ function ClaudeStatus() {
     check();
   }, [check]);
 
-  const post = async (body: Record<string, unknown>) => {
-    const r = await fetch("/api/auth", {
+  const post = async (body: Record<string, unknown>, url = "/api/auth") => {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
     return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  };
+
+  const installCli = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { ok: good, data } = await post({ action: "install-cli" }, "/api/setup");
+      if (!good) setErr(data.error ?? "Install failed.");
+      await check();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const startLogin = async () => {
@@ -2482,9 +2494,21 @@ function ClaudeStatus() {
           </table>
         )}
 
-        {/* Not installed is the one thing sign-in cannot fix. */}
-        {h && !h.installed && h.remedy && (
-          <pre className="cli-remedy">{h.remedy}</pre>
+        {h && !h.installed && (
+          <div className="cli-auth">
+            <p className="cli-note">
+              Claude Code isn&rsquo;t on this machine yet. Everything here runs on
+              it, so nothing works until it is installed.
+            </p>
+            <button className="btn btn-sm" disabled={busy} onClick={() => void installCli()}>
+              {busy ? "Installing…" : "Install Claude Code"}
+            </button>
+            <p className="cli-note">
+              Runs <code>npm install -g @anthropic-ai/claude-code</code>. Takes a
+              minute, and needs no terminal unless npm cannot write to its global
+              folder — the error will say so.
+            </p>
+          </div>
         )}
 
         {h?.installed && !h.loggedIn && !login && (
@@ -2823,6 +2847,99 @@ function DriveFolderSettings() {
   );
 }
 
+
+/**
+ * The launchd agents, from the panel rather than a shell.
+ *
+ * Without these the app runs only while you keep a terminal open, the Telegram
+ * relay does not run at all, and the daily sweep never fires — which is a lot
+ * of the tool quietly missing for want of one command nobody knew to run.
+ */
+function BackgroundServices() {
+  const [status, setStatus] = useState<string | null>(null);
+  const [tooling, setTooling] = useState<{ libreoffice: boolean; pythonDocs: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
+
+  const call = useCallback(async (action: string) => {
+    const r = await fetch("/api/setup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const [s, t] = await Promise.all([call("agents-status"), call("tooling")]);
+    setStatus(typeof s.data.out === "string" ? s.data.out : null);
+    setTooling(t.data as { libreoffice: boolean; pythonDocs: boolean });
+  }, [call]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const run = async (action: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const { ok, data } = await call(action);
+      setMsg({ text: data.error ?? data.message ?? "Done.", bad: !ok });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loaded = (status ?? "").match(/loaded/g)?.length ?? 0;
+  const all = loaded >= 3;
+
+  return (
+    <div className="field">
+      <label>Background services</label>
+      <div className="tg">
+        <div className="tg-row">
+          <span className={`dot ${all ? "ok" : "off"}`} />
+          <b>{status === null ? "Checking…" : all ? "Running" : `${loaded} of 3 installed`}</b>
+          <button
+            className="btn btn-sm"
+            style={{ marginLeft: "auto" }}
+            disabled={busy}
+            onClick={() => void run(all ? "agents-uninstall" : "agents-install")}
+          >
+            {busy ? "Working…" : all ? "Remove" : "Install"}
+          </button>
+        </div>
+        <p className="tg-note">
+          Keeps the app running without a terminal, keeps the Telegram relay up,
+          and runs the commitment sweep at 08:00. Optional — the app works
+          without them, you just have to start it yourself.
+        </p>
+
+        {tooling && (
+          <p className="tg-note">
+            Document tooling:{" "}
+            <b>{tooling.pythonDocs ? "spreadsheets and decks ready" : "python needs openpyxl and python-pptx"}</b>
+            {" · "}
+            <b>{tooling.libreoffice ? "Word and RTF ready" : "Word and RTF need LibreOffice"}</b>
+            {!tooling.libreoffice && (
+              <>
+                {" — "}
+                <a href="https://www.libreoffice.org/download/" target="_blank" rel="noreferrer noopener">
+                  get it
+                </a>
+              </>
+            )}
+          </p>
+        )}
+
+        {msg && <p className={`tg-msg${msg.bad ? " bad" : ""}`}>{msg.text}</p>}
+      </div>
+    </div>
+  );
+}
+
 function Settings({
   settings,
 }: {
@@ -2835,6 +2952,7 @@ function Settings({
       </div>
       <div className="form">
         <ClaudeStatus />
+        <BackgroundServices />
         <DriveFolderSettings />
         <TelegramSettings />
         <div className="field">

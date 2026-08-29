@@ -100,6 +100,33 @@ function extractQuestions(raw: string): { text: string; questions: string[] } {
   return { text, questions };
 }
 
+/**
+ * Name the granted tools explicitly.
+ *
+ * --allowedTools PRE-APPROVES; it does not hide. Every connected MCP server's
+ * tools stay visible, so when two servers cover the same ground — an account
+ * connector and a self-hosted one, say — the model can reach for the one it
+ * was not granted and be refused. Under `claude -p` there is nobody to answer
+ * the prompt, so the turn simply fails, and it reads as "no access" when
+ * access was in fact granted to a differently-named tool.
+ *
+ * Observed: with mcp__gmail__gmail_search granted, the model still called
+ * mcp__claude_ai_Gmail__search_threads and stalled.
+ */
+function grantedToolsNote(serviceTools: string[]): string {
+  if (!serviceTools.length) return "";
+  return (
+    "\n\n---\nCONNECTED SERVICES\n\n" +
+    "These are the ONLY external tools available to you this turn:\n" +
+    serviceTools.map((t) => `  - ${t}`).join("\n") +
+    "\n\nOther tools with similar names may appear — from an account connector " +
+    "covering the same service, for instance. They are NOT granted, and calling " +
+    "one fails the turn rather than prompting anyone. Use the exact names above. " +
+    "If none of them can do what was asked, say so plainly rather than reaching " +
+    "for a neighbouring tool."
+  );
+}
+
 export function runClaude(args: RunArgs): Promise<RunResult> {
   const {
     prompt,
@@ -122,6 +149,7 @@ export function runClaude(args: RunArgs): Promise<RunResult> {
     mode.model,
     "--append-system-prompt",
     `${systemPrompt}\n\n${mode.instruction}${channel === "plain" ? PLAIN : FORMATTING}${QUESTION_PROTOCOL}` +
+      grantedToolsNote(serviceTools) +
       (voice ? `\n\n---\nHOW YOU SOUND\n\n${voice}` : ""),
     "--allowedTools",
     ...mode.tools,

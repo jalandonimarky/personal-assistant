@@ -332,9 +332,24 @@ export async function POST(req: Request) {
       );
     }
     const envArgs = (svc.requiredEnv ?? []).flatMap((k) => ["-e", `${k}=${process.env[k]}`]);
+    /**
+     * --scope user, not the default "local".
+     *
+     * Local scope binds the server to the directory `claude mcp add` ran in —
+     * here, the app's own folder. But turns are deliberately run from a
+     * NEUTRAL cwd (see scope.ts neutralCwd) so Claude Code does not pull the
+     * user's project memory into an assistant's context. From there a
+     * locally-scoped server does not exist, and its tools resolve to "No such
+     * tool available" even though `claude mcp list` — run in the app folder —
+     * happily reports it Connected.
+     *
+     * That mismatch made every self-hosted server look configured while being
+     * unreachable in an actual turn, and pushed the model towards the
+     * account-level connectors instead.
+     */
     const r = await exec(
       "claude",
-      ["mcp", "add", svc.mcpName, ...envArgs, "--", "node", script],
+      ["mcp", "add", "--scope", "user", svc.mcpName, ...envArgs, "--", "node", script],
       undefined,
       60_000,
     );

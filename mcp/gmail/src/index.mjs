@@ -350,7 +350,9 @@ async function call(name, args = {}) {
 const arg = process.argv[2];
 if (arg?.startsWith("--")) {
   await cli(async () => {
-    const handled = await runCli(await cfg(), "Gmail", arg);
+    const handled = await runCli(await cfg(), "Gmail", arg, {
+      openBrowser: !process.argv.includes("--no-browser"),
+    });
     if (!handled) throw new Error(`Unknown flag: ${arg}`);
   });
 } else {

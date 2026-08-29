@@ -250,6 +250,8 @@ export default function Page() {
   /** Two-step on Disconnect: it unregisters the server, not just this turn. */
   const [confirmOff, setConfirmOff] = useState<string | null>(null);
   const [configFor, setConfigFor] = useState<string | null>(null);
+  /** Fallback when the browser blocks the sign-in popup. */
+  const [signInUrl, setSignInUrl] = useState<{ id: string; url: string } | null>(null);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
@@ -342,6 +344,59 @@ export default function Page() {
       }
     },
     [clientId, clientSecret, loadCatalog],
+  );
+
+  /**
+   * OAuth sign-in for a locally registered server. The page opens the URL, not
+   * the server: `open` on the server picks the system default browser, which
+   * is often not the one this app is being used in.
+   */
+  const oauthSignIn = useCallback(
+    async (id: string) => {
+      setSvcBusy(id);
+      setSvcMsg(null);
+      // Opened SYNCHRONOUSLY, inside the click. A window.open() after an await
+      // has lost the user gesture and is what popup blockers stop.
+      const tab = window.open("about:blank", "_blank");
+      try {
+        const start = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, action: "start-oauth-login" }),
+        });
+        const s1 = await start.json();
+        if (!start.ok || !s1.url) {
+          tab?.close();
+          setSvcMsg({ id, text: s1.error ?? "Could not start sign-in.", bad: true });
+          return;
+        }
+        if (tab) {
+          tab.location.href = s1.url;
+          setSvcMsg({ id, text: "Approve in the tab that just opened…" });
+        } else {
+          // Blocked anyway — hand over the link rather than stalling silently.
+          setSignInUrl({ id, url: s1.url });
+          setSvcMsg({ id, text: "Popup blocked — use the sign-in link below." });
+        }
+
+        const done = await fetch("/api/services/connect", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          // `id` is the service; `loginId` identifies this pending sign-in.
+          body: JSON.stringify({ id, action: "await-oauth-login", loginId: s1.id }),
+        });
+        const s2 = await done.json();
+        setSvcMsg({ id, text: s2.error ?? s2.message ?? "Done.", bad: !done.ok });
+        setSignInUrl(null);
+        if (done.ok) await loadCatalog(true);
+      } catch (e) {
+        tab?.close();
+        setSvcMsg({ id, text: String(e), bad: true });
+      } finally {
+        setSvcBusy(null);
+      }
+    },
+    [loadCatalog],
   );
 
   const svcAction = useCallback(
@@ -1256,7 +1311,7 @@ export default function Page() {
                               <button
                                 className="btn btn-sm"
                                 disabled={busy}
-                                onClick={() => void svcAction(c.id, "login")}
+                                onClick={() => void oauthSignIn(c.id)}
                               >
                                 {busy ? "Waiting for browser…" : "Sign in"}
                               </button>
@@ -1347,6 +1402,14 @@ export default function Page() {
                                   ))}
                               </>
                             )}
+                          </div>
+                        )}
+
+                        {signInUrl?.id === c.id && (
+                          <div className="svc-token">
+                            <a href={signInUrl.url} target="_blank" rel="noreferrer noopener">
+                              Open the Google sign-in page →
+                            </a>
                           </div>
                         )}
 

@@ -290,6 +290,84 @@ export async function POST(req: Request) {
       : NextResponse.json({ error: r.err || r.out || "Registration failed." }, { status: 500 });
   }
 
+  /**
+   * Two-step OAuth sign-in, so the browser is opened BY THE PAGE rather than by
+   * the server. `open` launches the system default browser, which is often not
+   * the one the assistant is being used in — and being thrown into a different
+   * browser mid-sign-in is both jarring and a good way to end up approving a
+   * stale tab. The loopback listener does not care which browser arrives.
+   */
+  if (body.action === "start-oauth-login") {
+    const child = spawn("node", [script, "--login", "--no-browser"], {
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const id = `${process.pid}-${Date.now()}`;
+    const entry = {
+      child,
+      out: "",
+      timer: setTimeout(() => dropLogin(id), 10 * 60 * 1000),
+    };
+    connectorLogins.set(id, entry);
+    const collect = (d: Buffer) => {
+      entry.out += d.toString();
+    };
+    child.stdout.on("data", collect);
+    child.stderr.on("data", collect);
+    child.on("error", () => dropLogin(id));
+
+    const url = await new Promise<string | null>((resolve) => {
+      const deadline = Date.now() + 25_000;
+      const tick = setInterval(() => {
+        const m = entry.out.match(/https:\/\/\S+/);
+        if (m) {
+          clearInterval(tick);
+          resolve(m[0].trim());
+        } else if (child.exitCode !== null || Date.now() > deadline) {
+          clearInterval(tick);
+          resolve(null);
+        }
+      }, 100);
+    });
+
+    if (!url) {
+      const out = entry.out.trim();
+      dropLogin(id);
+      return NextResponse.json(
+        { error: out || `Could not start sign-in for ${svc.label}.` },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true, id, url });
+  }
+
+  /** Wait for the loopback redirect to complete the sign-in the page opened. */
+  if (body.action === "await-oauth-login") {
+    const loginId = String(body.loginId ?? "");
+    const entry = connectorLogins.get(loginId);
+    if (!entry) {
+      return NextResponse.json(
+        { error: "That sign-in is no longer open. Start again." },
+        { status: 410 },
+      );
+    }
+    const code = await new Promise<number | null>((resolve) => {
+      const timer = setTimeout(() => resolve(null), 290_000);
+      entry.child.once("close", (c) => {
+        clearTimeout(timer);
+        resolve(c);
+      });
+    });
+    const tail = entry.out.trim();
+    dropLogin(loginId);
+    return code === 0
+      ? NextResponse.json({ ok: true, message: `Signed in to ${svc.label}.` })
+      : NextResponse.json(
+          { error: tail.split("\n").pop() || "Sign-in did not complete." },
+          { status: 400 },
+        );
+  }
+
   if (body.action === "login") {
     if (svc.auth.kind === "token") {
       const token = typeof body.token === "string" ? body.token.trim() : "";

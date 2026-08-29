@@ -170,8 +170,16 @@ async function tokenRequest(cfg, params) {
   return json;
 }
 
-/** Interactive sign-in. Opens the browser and stores the refresh token. */
-export async function login(cfg) {
+/**
+ * Interactive sign-in. Stores the refresh token.
+ *
+ * `openBrowser: false` prints the URL instead of launching one. That is what
+ * the app uses: `open` starts the SYSTEM default browser, which is often not
+ * the browser the assistant is being used in — so the page opens the URL
+ * itself and the sign-in stays where the person already is. The loopback
+ * listener does not care which browser arrives.
+ */
+export async function login(cfg, { openBrowser = true } = {}) {
   const { verifier, challenge } = pkce();
   const state = b64url(randomBytes(16));
   // 127.0.0.1, not localhost. Google matches redirect URIs as exact strings,
@@ -197,9 +205,14 @@ export async function login(cfg) {
     });
 
   const waiting = awaitCode(cfg.port, state);
-  await run("open", [url]).catch(() => {
-    process.stderr.write(`Open this URL to sign in:\n${url}\n`);
-  });
+  if (openBrowser) {
+    await run("open", [url]).catch(() => {
+      process.stdout.write(`Open this URL to sign in:\n${url}\n`);
+    });
+  } else {
+    // Printed on stdout so the caller can capture and surface it.
+    process.stdout.write(`${url}\n`);
+  }
 
   const code = await waiting;
   const tok = await tokenRequest(cfg, {
@@ -284,9 +297,9 @@ export async function apiText(cfg, url) {
  * Shared CLI surface. Every server exposes the same three verbs, which is what
  * the Connections panel drives: --login, --logout, --status.
  */
-export async function runCli(cfg, label, arg) {
+export async function runCli(cfg, label, arg, opts = {}) {
   if (arg === "--login") {
-    await login(cfg);
+    await login(cfg, opts);
     const who = await whoami(cfg).catch(() => null);
     console.log(`Signed in to ${label}${who ? ` as ${who}` : ""}.`);
     return true;

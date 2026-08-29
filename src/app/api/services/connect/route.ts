@@ -347,12 +347,45 @@ export async function POST(req: Request) {
      * unreachable in an actual turn, and pushed the model towards the
      * account-level connectors instead.
      */
-    const r = await exec(
-      "claude",
-      ["mcp", "add", "--scope", "user", svc.mcpName, ...envArgs, "--", "node", script],
-      undefined,
-      60_000,
-    );
+    const add = () =>
+      exec(
+        "claude",
+        ["mcp", "add", "--scope", "user", svc.mcpName, ...envArgs, "--", "node", script],
+        undefined,
+        60_000,
+      );
+
+    let r = await add();
+
+    /**
+     * `mcp add` refuses to overwrite an existing entry, which is right — a
+     * second copy of this repo must not silently hijack the first's server.
+     * But it makes two ordinary cases look like failures: pressing Set up on
+     * something already set up, and re-registering after the project moved,
+     * where the recorded path now points at nothing.
+     *
+     * So: if it already exists, look at where it points. Same script, nothing
+     * to do. Different script, this install is claiming it — remove and re-add,
+     * which is the only way to repoint a moved project without a terminal.
+     */
+    if (!r.ok && /already exists/i.test(`${r.err}${r.out}`)) {
+      const shown = await exec("claude", ["mcp", "get", svc.mcpName], undefined, 30_000);
+      if (shown.out.includes(script)) {
+        return NextResponse.json({
+          ok: true,
+          message: `${svc.label} was already set up.`,
+        });
+      }
+      await exec("claude", ["mcp", "remove", svc.mcpName], undefined, 60_000);
+      r = await add();
+      if (r.ok) {
+        return NextResponse.json({
+          ok: true,
+          message: `${svc.label} re-registered — it was pointing at a different copy.`,
+        });
+      }
+    }
+
     return r.ok
       ? NextResponse.json({ ok: true, message: `${svc.label} registered.` })
       : NextResponse.json({ error: r.err || r.out || "Registration failed." }, { status: 500 });

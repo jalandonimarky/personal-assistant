@@ -9,29 +9,29 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "store.json");
 
 const HOME = os.homedir();
+const MARKY = path.join(HOME, "marky");
 
-/**
- * Where assistants may READ by default. Point this at wherever your notes live;
- * change it here before first run, or in data/store.json afterwards.
- */
-const NOTES = path.join(HOME, "Notes");
+// Deliberate read-only door through the Emburse wall: the AEEA Analyst needs the
+// live knowledge base, which lives in the separate ~/Emburse workspace.
+const EMBURSE_AEEA = path.join(HOME, "Emburse", "AEEA");
 
 function seedAssistants(): Assistant[] {
   const now = Date.now();
   return [
     {
       id: randomUUID(),
-      // Owns its own directory, and additionally READS a reference directory it
-      // cannot write to. The pattern for "knows my existing notes".
-      knowledgeRoot: path.join(KNOWLEDGE_HOME, "research-analyst"),
-      readableDirs: [NOTES],
-      name: "Research Analyst",
+      // Reads the real AEEA kb, but writes only to its own directory.
+      knowledgeRoot: path.join(KNOWLEDGE_HOME, "aeea-analyst"),
+      readableDirs: [EMBURSE_AEEA],
+      name: "AEEA Analyst",
       description:
-        "Tracks an ongoing workstream against a reference library it can read but not modify.",
+        "Tracks the AEEA workstreams — Propensity IQ, platform access, meetings, and the knowledge base.",
       systemPrompt: [
-        "You track an ongoing workstream. The knowledge base lives on disk. Read it",
-        "before answering — do not guess at project state. Cite the file you took a",
-        "fact from.",
+        "You help track the AEEA programme at Emburse: Propensity IQ, the data platform,",
+        "Educate Day, homegrown tools, and the enrichment platform integrations.",
+        "",
+        "The knowledge base lives on disk. Read it before answering — do not guess at",
+        "project state. Cite the file you took a fact from.",
         "",
         "Persist durable structure, re-query volatile state. Store mappings, IDs, and",
         "decisions; never store a snapshot that goes stale (a current sprint name, a",
@@ -77,7 +77,7 @@ function seedAssistants(): Assistant[] {
         "Only the text is required. `moved:` is what makes staleness exact — update it",
         "to today's date every time an item actually moves, and never otherwise. Tick",
         "the box (`- [x]`) when it's done rather than deleting the line.",
-        "See README.md in your knowledge directory for the full convention.",
+        "See commitments.md in your knowledge directory for the full convention.",
       ].join("\n"),
       createdAt: now - 2,
     },
@@ -92,8 +92,8 @@ function defaults(): Store {
     questions: [],
     sweeps: [],
     settings: {
-      knowledgeDirs: [NOTES],
-      knowledgeRoot: NOTES,
+      knowledgeDirs: [MARKY],
+      knowledgeRoot: EMBURSE_AEEA,
     },
   };
 }
@@ -134,11 +134,43 @@ function migrate(s: Store): boolean {
 }
 
 export function read(): Store {
+  let raw: string;
   try {
-    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8")) as Store;
+    raw = fs.readFileSync(DATA_FILE, "utf8");
+  } catch {
+    // No file yet — a first run. Seed it.
+    const fresh = defaults();
+    migrate(fresh);
+    write(fresh);
+    return fresh;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Store;
     if (migrate(parsed)) write(parsed);
     return parsed;
-  } catch {
+  } catch (e) {
+    /**
+     * The file exists but will not parse. This used to seed defaults and write
+     * them straight over the top — which silently destroyed every thread,
+     * message and question, left no backup, and presented a working app with
+     * an empty history. There is no undo for that and no way to tell it
+     * happened.
+     *
+     * Keep the bad file. Losing today's session to a truncated write is
+     * survivable; losing everything with no trace is not.
+     */
+    const kept = `${DATA_FILE}.corrupt-${Date.now()}`;
+    try {
+      fs.copyFileSync(DATA_FILE, kept);
+    } catch {
+      // Even the copy failed — carry on rather than trapping the app in a
+      // state it cannot start from.
+    }
+    console.error(
+      `store.json could not be parsed (${(e as Error).message}). ` +
+        `The unreadable file has been kept at ${kept} and a fresh store seeded.`,
+    );
     const fresh = defaults();
     migrate(fresh);
     write(fresh);

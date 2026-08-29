@@ -240,6 +240,15 @@ async function handleCommand(chatId, text) {
 const READABLE_DOC = /^(image\/(png|jpe?g|gif|webp)|application\/pdf|text\/)/i;
 
 /**
+ * Formats the app can extract text from even though the Read tool cannot open
+ * them. The web composer has handled these since attachments were added; the
+ * relay was still refusing them, so the same .docx worked in the browser and
+ * was declined on the phone. Kept in step with EXTRACT_EXT in src/lib/files.ts.
+ */
+const EXTRACTABLE_DOC =
+  /(officedocument|opendocument|msword|ms-excel|ms-powerpoint|rtf|epub)/i;
+
+/**
  * The attachment on a message, normalised to one shape, or null.
  *
  * Telegram gives each media type its own field rather than a discriminator, so
@@ -272,7 +281,10 @@ function attachmentOf(msg) {
       label: `a file (${d.file_name ?? "unnamed"})`,
       fileId: d.file_id,
       ext: path.extname(d.file_name ?? ""),
-      readable: READABLE_DOC.test(d.mime_type ?? ""),
+      readable:
+        READABLE_DOC.test(d.mime_type ?? "") ||
+        EXTRACTABLE_DOC.test(d.mime_type ?? "") ||
+        /\.(docx?|pptx?|xlsx?|odt|ods|odp|rtf|epub)$/i.test(d.file_name ?? ""),
     };
   }
 
@@ -313,13 +325,37 @@ async function download(att) {
   const file = await tg("getFile", { file_id: att.fileId });
   const res = await fetch(`${FILE_BASE}${token}/${file.file_path}`);
   if (!res.ok) throw new Error(`file download → ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
 
   // file_unique_id is stable and contains no separators, so it is a safe
   // basename — a sender-supplied file_name is not.
   const ext = att.ext || path.extname(file.file_path) || "";
-  const dest = path.join(await inbox(), `${file.file_unique_id}${ext}`);
-  fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
-  return dest;
+  const name = `${file.file_unique_id}${ext}`;
+
+  /**
+   * Hand the bytes to the app rather than writing them here.
+   *
+   * The app's upload path is what extracts .docx/.xlsx/.pptx into something the
+   * Read tool can open. Writing the file directly — which this did — meant the
+   * same document worked in the browser and was refused on the phone, for no
+   * reason the user could see. One code path, one behaviour.
+   */
+  try {
+    const form = new FormData();
+    form.append("files", new Blob([bytes]), name);
+    const up = await fetch(`${APP}/api/upload`, { method: "POST", body: form });
+    if (up.ok) {
+      const d = await up.json();
+      const stored = d.files?.[0];
+      if (stored?.path) return stored;
+    }
+  } catch {
+    // App unreachable mid-turn: fall through and at least save the file.
+  }
+
+  const dest = path.join(await inbox(), name);
+  fs.writeFileSync(dest, bytes);
+  return { path: dest, name };
 }
 
 /**
@@ -337,11 +373,18 @@ async function compose(msg, text) {
     // Logged because a silent failure here is indistinguishable from the relay
     // being down — which cost an afternoon of guessing once already.
     console.log(`attachment: ${att.label} → downloading`);
-    const file = await download(att);
+    const stored = await download(att);
+    const file = stored.path;
     console.log(`attachment: saved ${file}`);
+    // Office formats come back with an extracted sidecar; point at that, since
+    // Read cannot parse the original.
+    const target = stored.extractedPath
+      ? `${stored.extractedPath} (text extracted from ${stored.name})`
+      : file;
+
     return [
       text,
-      `[The user attached ${att.label}, saved at ${file}. Open it with Read ` +
+      `[The user attached ${att.label}, saved at ${target}. Open it with Read ` +
         `before answering — they can see it and expect you to have looked.]`,
     ]
       .filter(Boolean)

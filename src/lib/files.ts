@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { inboxDir } from "./scope";
 
@@ -111,6 +111,39 @@ export function sofficeAvailable(): boolean {
   });
 }
 
+/**
+ * A python3 that actually has openpyxl and python-pptx.
+ *
+ * PATH order is not enough — a Homebrew or pyenv python3 is routinely first
+ * while having neither library, so extraction fails with ModuleNotFoundError on
+ * a machine where the tooling is installed and working. Probed once and cached;
+ * the answer cannot change under us.
+ */
+let cachedPython: string | null = null;
+function pythonBin(): string {
+  if (cachedPython) return cachedPython;
+  const candidates = [
+    "/usr/local/bin/python3",
+    "python3",
+    "/opt/homebrew/bin/python3",
+    "/usr/bin/python3",
+  ];
+  for (const bin of candidates) {
+    const r = spawnSync(bin, ["-c", "import openpyxl, pptx"], {
+      env: { ...process.env, PATH: TOOL_PATH },
+      timeout: 20_000,
+    });
+    if (r.status === 0) {
+      cachedPython = bin;
+      return bin;
+    }
+  }
+  // Nothing qualified: fall back so the failure comes from build.py with a
+  // real message, rather than from here with a guess.
+  cachedPython = "python3";
+  return cachedPython;
+}
+
 /** Run build.py's `read` op. It already handles every format in EXTRACT_EXT. */
 function extractText(absPath: string): Promise<{ ok: boolean; text?: string; error?: string }> {
   return new Promise((resolve) => {
@@ -119,7 +152,7 @@ function extractText(absPath: string): Promise<{ ok: boolean; text?: string; err
       return resolve({ ok: false, error: "the documents helper is missing" });
     }
 
-    const child = spawn("python3", [script], {
+    const child = spawn(pythonBin(), [script], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, PATH: TOOL_PATH },
     });

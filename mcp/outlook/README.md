@@ -57,7 +57,7 @@ Hand IT the two values from the registration:
 export OUTLOOK_TENANT_ID=<directory-tenant-id>
 export OUTLOOK_CLIENT_ID=<application-client-id>
 
-claude mcp add outlook -e OUTLOOK_TENANT_ID=$OUTLOOK_TENANT_ID \
+claude mcp add --scope user outlook -e OUTLOOK_TENANT_ID=$OUTLOOK_TENANT_ID \
                        -e OUTLOOK_CLIENT_ID=$OUTLOOK_CLIENT_ID \
                        -- node /absolute/path/to/mcp/outlook/src/index.mjs
 

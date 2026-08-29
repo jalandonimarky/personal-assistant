@@ -110,13 +110,20 @@ function awaitCode(port, expectedState) {
         reject(new Error(error));
         return;
       }
-      // Guards against another site's redirect completing this flow.
+      /**
+       * Guards against another site's redirect completing this flow — but in
+       * practice the common cause is far duller: an earlier sign-in tab, left
+       * open from a previous attempt, being approved after a new attempt has
+       * started. Its state belongs to the old request. Say so, because "state
+       * mismatch" alone reads as a bug in the app.
+       */
       if (state !== expectedState) {
-        res
-          .writeHead(400, { "content-type": "text/html" })
-          .end(page("Sign-in failed", "State mismatch — the response did not match this request."));
+        const why =
+          "This response belongs to an earlier sign-in attempt. Close any other " +
+          "Google sign-in tabs, then press Sign in again and use only the tab it opens.";
+        res.writeHead(400, { "content-type": "text/html" }).end(page("Sign-in failed", why));
         server.close();
-        reject(new Error("state mismatch"));
+        reject(new Error(why));
         return;
       }
       res
@@ -126,7 +133,18 @@ function awaitCode(port, expectedState) {
       resolve(code);
     });
 
-    server.on("error", reject);
+    // A previous attempt still holding the port would otherwise take this
+    // redirect and reject it as a state mismatch, blaming the wrong thing.
+    server.on("error", (e) =>
+      reject(
+        e.code === "EADDRINUSE"
+          ? new Error(
+              `Port ${port} is already in use by an earlier sign-in. Wait a moment for it to ` +
+                `time out, or close any half-finished sign-in, then try again.`,
+            )
+          : e,
+      ),
+    );
     // Loopback only — this listener must never be reachable off-machine.
     server.listen(port, "127.0.0.1");
     setTimeout(() => {

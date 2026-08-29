@@ -119,9 +119,16 @@ export function neutralCwd(): string {
  * the assistant reasons over, and a 2 MB .pptx sitting in it would be indexed,
  * walked by the staleness scanner, and listed in the Knowledge tab for no
  * benefit. Outside the workspace for the same reason as neutralCwd().
+ *
+ * In ~/Documents, NOT os.tmpdir(). These are deliverables — the spreadsheet
+ * someone asked for. A temp directory is periodically purged by macOS and is
+ * a path no one can navigate to, so a file the assistant reported creating
+ * would quietly stop existing. Override with PA_OUTBOX_DIR.
  */
 export function outboxDir(): string {
-  const dir = path.join(os.tmpdir(), "personal-assistant-outbox");
+  const dir =
+    process.env.PA_OUTBOX_DIR?.trim() ||
+    path.join(os.homedir(), "Documents", "Personal Assistant");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

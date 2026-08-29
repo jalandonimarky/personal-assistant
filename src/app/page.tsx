@@ -862,6 +862,7 @@ export default function Page() {
                             <div className="body">
                               <Markdown>{m.content}</Markdown>
                             </div>
+                            <FileActions content={m.content} />
                             {m.costUsd != null && (
                               <div
                                 className="cost"
@@ -2217,6 +2218,101 @@ function Knowledge({ assistantId }: { assistantId: string }) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+
+interface ProducedFile {
+  path: string;
+  name: string;
+  bytes: number;
+}
+
+/**
+ * Absolute paths a reply mentioned. Deliberately generous — anything that
+ * looks like a path is offered to the server, which returns only the ones that
+ * really exist inside a directory this app already exposes. So a path the
+ * model invented, or one pointing somewhere it should not, simply never gets
+ * a button.
+ *
+ * Code spans are read FIRST and matter more than they look. Paths routinely
+ * contain spaces — the outbox itself is "Documents/Personal Assistant" — and a
+ * bare whitespace-delimited match truncates at the first one, producing a path
+ * that does not exist and no button on the very files this feature is for.
+ * Backticks carry the whole path, and models reliably wrap paths in them.
+ */
+const CODE_SPAN_RE = /`([^`\n]+)`/g;
+const BARE_PATH_RE = /(?:\/Users\/|\/private\/|\/tmp\/|\/var\/)[^\s`"'<>()\[\]]+/g;
+const ABSOLUTE = /^(?:\/Users\/|\/private\/|\/tmp\/|\/var\/)/;
+
+function candidatePaths(content: string): string[] {
+  const out = new Set<string>();
+  for (const m of content.matchAll(CODE_SPAN_RE)) {
+    const inner = m[1].trim();
+    if (ABSOLUTE.test(inner)) out.add(inner);
+  }
+  for (const m of content.match(BARE_PATH_RE) ?? []) {
+    // Trailing punctuation from prose: "saved to /Users/…/a.xlsx."
+    out.add(m.replace(/[.,;:]+$/, ""));
+  }
+  return [...out];
+}
+
+function FileActions({ content }: { content: string }) {
+  const [files, setFiles] = useState<ProducedFile[]>([]);
+
+  useEffect(() => {
+    const candidates = candidatePaths(content);
+    if (!candidates.length) {
+      setFiles([]);
+      return;
+    }
+    let live = true;
+    fetch("/api/files", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "check", paths: candidates }),
+    })
+      .then((r) => r.json())
+      .then((d) => live && setFiles(d.files ?? []))
+      .catch(() => live && setFiles([]));
+    return () => {
+      live = false;
+    };
+  }, [content]);
+
+  if (!files.length) return null;
+
+  const act = (path: string, action: "open" | "reveal") =>
+    fetch("/api/files", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, path }),
+    }).catch(() => {});
+
+  const size = (b: number) =>
+    b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+
+  return (
+    <div className="files">
+      {files.map((f) => (
+        <div key={f.path} className="file-row">
+          <span className="file-name" title={f.path}>
+            {f.name}
+          </span>
+          <span className="file-size">{size(f.bytes)}</span>
+          <button className="linkish" onClick={() => void act(f.path, "open")}>
+            Open
+          </button>
+          <button className="linkish" onClick={() => void act(f.path, "reveal")}>
+            Show in Finder
+          </button>
+          <a className="linkish" href={`/api/files?download=${encodeURIComponent(f.path)}`}>
+            Download
+          </a>
+        </div>
+      ))}
     </div>
   );
 }

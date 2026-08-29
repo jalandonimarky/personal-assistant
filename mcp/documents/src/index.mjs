@@ -7,6 +7,64 @@ import { promisify } from "node:util";
 import { serve, cli } from "../../lib/rpc.mjs";
 
 const run = promisify(execFile);
+
+/**
+ * PATH for the Python we shell out to.
+ *
+ * Inherited PATH FIRST, then the usual install locations. Order matters and
+ * has bitten this project once already: prepending /opt/homebrew/bin picks a
+ * python3 that has neither openpyxl nor python-pptx, so every .xlsx and .pptx
+ * fails with ModuleNotFoundError while the binary is plainly present. Under an
+ * MCP launch the inherited PATH can be near-empty, hence the additions.
+ */
+const TOOL_PATH = [
+  process.env.PATH ?? "",
+  "/usr/local/bin",
+  "/opt/homebrew/bin",
+  "/usr/bin",
+  "/Applications/LibreOffice.app/Contents/MacOS",
+]
+  .filter(Boolean)
+  .join(":");
+
+const TOOL_ENV = { ...process.env, PATH: TOOL_PATH };
+
+/**
+ * Find a python3 that actually has openpyxl and python-pptx.
+ *
+ * PATH order is not enough and this has now failed twice. The interpreter that
+ * wins depends on whose environment launched this server — a shell, launchd,
+ * or Claude Code — and a Homebrew or pyenv python3 will be first on PATH while
+ * having none of the libraries. The symptom is ModuleNotFoundError from a
+ * binary that is plainly installed, which reads as a broken dependency rather
+ * than the wrong interpreter.
+ *
+ * So: probe the candidates and pick one that can import what we need. Resolved
+ * once per process, since the answer cannot change under us.
+ */
+let PYTHON = null;
+async function python() {
+  if (PYTHON) return PYTHON;
+  const candidates = [
+    "/usr/local/bin/python3",
+    "python3",
+    "/opt/homebrew/bin/python3",
+    "/usr/bin/python3",
+  ];
+  for (const bin of candidates) {
+    try {
+      await run(bin, ["-c", "import openpyxl, pptx"], { env: TOOL_ENV, timeout: 20_000 });
+      PYTHON = bin;
+      return bin;
+    } catch {
+      /* wrong interpreter, or the libraries are not there — try the next */
+    }
+  }
+  throw new Error(
+    "No python3 with openpyxl and python-pptx. Install them for the interpreter you intend: " +
+      "python3 -m pip install openpyxl python-pptx",
+  );
+}
 const BUILD = path.join(import.meta.dirname, "build.py");
 
 /**
@@ -21,8 +79,17 @@ const BUILD = path.join(import.meta.dirname, "build.py");
  * escapes the root.
  */
 
+/**
+ * Where produced files land. In ~/Documents, not a temp directory: these are
+ * deliverables, and os.tmpdir() is both periodically purged by macOS and a
+ * path nobody can navigate to. Kept in step with outboxDir() in src/lib/scope.ts
+ * — the app offers Open / Show in Finder / Download for files under that root,
+ * so the two must agree or the buttons never appear.
+ */
 const ROOT =
-  process.env.DOCUMENTS_ROOT || path.join(os.tmpdir(), "personal-assistant-outbox");
+  process.env.DOCUMENTS_ROOT ||
+  process.env.PA_OUTBOX_DIR ||
+  path.join(os.homedir(), "Documents", "Personal Assistant");
 fs.mkdirSync(ROOT, { recursive: true });
 
 /** Resolve a model-supplied filename inside the outbox, or refuse. */
@@ -46,9 +113,13 @@ function safeIn(p) {
  * `input` option, and passing one silently leaves the child waiting on a stdin
  * that never closes — it hangs until the timeout rather than failing.
  */
-function py(payload) {
+async function py(payload) {
+  const bin = await python();
   return new Promise((resolve, reject) => {
-    const child = spawn("python3", [BUILD], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(bin, [BUILD], {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: TOOL_ENV,
+    });
     let out = "";
     let err = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), 240_000);
@@ -222,11 +293,12 @@ if (process.argv[2] === "--status") {
   await cli(async () => {
     const checks = {};
     for (const [k, mod] of [["openpyxl", "openpyxl"], ["python-pptx", "pptx"]]) {
-      checks[k] = await run("python3", ["-c", `import ${mod}`])
+      checks[k] = await python()
+        .then((bin) => run(bin, ["-c", `import ${mod}`], { env: TOOL_ENV }))
         .then(() => true)
         .catch(() => false);
     }
-    checks.soffice = await run("soffice", ["--version"], { timeout: 60_000 })
+    checks.soffice = await run("soffice", ["--version"], { timeout: 60_000, env: TOOL_ENV })
       .then(() => true)
       .catch(() => false);
     // No credential to hold: this server works on local files only.

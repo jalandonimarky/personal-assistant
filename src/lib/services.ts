@@ -221,6 +221,34 @@ export const SERVICES: Service[] = [
       "Signs in as you. Reading covers your whole Drive; writing is scoped to files this assistant created.",
   },
   {
+    id: "documents",
+    label: "Documents",
+    blurb: "Produce spreadsheets, decks and documents, and read existing ones",
+    mcpName: "documents",
+    script: "mcp/documents/src/index.mjs",
+    auth: { kind: "none" },
+    authNote:
+      "Local only — no account, no credential. Needs registering with Claude Code so Authoring can reach it.",
+    /**
+     * Listed here so it can be registered and health-checked from the panel.
+     * The tools themselves are NOT granted per turn: producing a deliverable is
+     * part of what Authoring is, so modes.ts carries them natively. Without a
+     * card there was no way to notice the server had never been registered —
+     * Authoring simply reported the tools missing.
+     */
+    read: [],
+    grants: [
+      "Create .xlsx, .pptx and .docx files in your Documents folder",
+      "Read an existing spreadsheet, deck, document or PDF to work from",
+    ],
+    withheld: [
+      "Reach anything outside its own output folder",
+      "Send or share what it produces",
+    ],
+    writeNote:
+      "Granted by Authoring mode itself rather than per turn — producing a deliverable is what that mode is for.",
+  },
+  {
     id: "outlook",
     label: "Outlook",
     blurb: "Read and search your work mail",
